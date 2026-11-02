@@ -211,6 +211,7 @@ class Event:
     start: Duration
     duration: Duration
     pitch: Pitch
+    velocity: int = 80
 
     def shifted(self, offset: Duration) -> Event:
         """返回整体平移 ``offset`` 后的副本。
@@ -221,7 +222,7 @@ class Event:
         Returns:
             起点加上 ``offset`` 的新事件，时值与音高不变。
         """
-        return Event(self.start + offset, self.duration, self.pitch)
+        return Event(self.start + offset, self.duration, self.pitch, self.velocity)
 
 
 @dataclass(frozen=True)
@@ -238,6 +239,7 @@ class Note(Music):
 
     pitch: Pitch
     length: Duration
+    velocity: int = 80
 
     def __post_init__(self) -> None:
         """校验时值是否为正。
@@ -263,7 +265,7 @@ class Note(Music):
         Yields:
             时值为 ``length``、音高为 ``pitch`` 的事件。
         """
-        yield Event(Fraction(0), self.length, self.pitch)
+        yield Event(Fraction(0), self.length, self.pitch, self.velocity)
 
 
 @dataclass(frozen=True)
@@ -306,7 +308,7 @@ class Rest(Music):
         yield from ()
 
 
-def N(name: str, length: Duration | int | str) -> Note:
+def N(name: str, length: Duration | int | str, velocity: int = 80) -> Note:
     """按科学音高记号与时值构造单个音符。
 
     示例：``N("C4", Fraction(1, 4))``、``N("F#3", "1/8")``。
@@ -323,4 +325,4 @@ def N(name: str, length: Duration | int | str) -> Note:
     Raises:
         ValueError: 音高记号或时值不合法。
     """
-    return Note(Pitch.parse(name), Fraction(length))
+    return Note(Pitch.parse(name), Fraction(length), velocity)

@@ -1,5 +1,6 @@
 from fractions import Fraction as F
-from muse.core import N
+from muse.core import N, Track
+from muse.core.work import Score
 
 theme = (
     N("C4", F(1, 4))
@@ -15,7 +16,11 @@ harmony = (
 
 composition = theme | harmony
 
-print(composition.duration)
+track = Track(music=composition, instrument="Piano", name="My Track")
+
+score = Score(tracks=(track,), title="My Score")
+
+print(score)
 # 1
 
 for event in composition.events():
