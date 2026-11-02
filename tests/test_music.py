@@ -4,7 +4,7 @@ from fractions import Fraction
 
 import pytest
 
-from muse.core.basic import (
+from muse.core import (
     Event,
     Music,
     N,

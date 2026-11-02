@@ -1,21 +1,14 @@
-"""音乐组合 DSL 的核心数据模型。
+"""原子层：不可再拆分的基本音乐数据。
 
-本模块提供两种基础类型：
+本模块提供：
 
 - :class:`Pitch`：用音名、变音记号与八度描述的音高。
-- :class:`Event`：带有绝对起点和时长的音符事件。
-
-以及一组可通过运算符组合的音乐片段（:class:`Music`）：
-
-- ``a + b`` 串行组合（:class:`Sequence`）
-- ``a | b`` 并行组合（:class:`Parallel`）
-- ``a.repeat(n)`` 重复
-- ``a.transpose(n)`` 移调
+- :class:`Event`：展开到时间轴上的最小音符事件。
+- :class:`Note`：单个音符片段。
+- :class:`Rest`：休止片段。
 
 所有时长均以四分音符为单位，使用 :class:`fractions.Fraction`
-精确表示，避免浮点误差。片段内部通过 :meth:`Music.iter_events`
-惰性展开为时间轴上的事件序列，:meth:`Music.events` 则一次性返回
-元组；两者结果相同，前者适合长片段或只取前几个事件的场景。
+精确表示，避免浮点误差。
 """
 
 from __future__ import annotations
@@ -25,6 +18,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from fractions import Fraction
 from typing import Final, Literal, TypeAlias
+
+from .base import Music
 
 # 时长以四分音符为单位；Fraction 保证时值相加、相乘时不产生浮点误差。
 Duration: TypeAlias = Fraction
@@ -40,7 +35,7 @@ Spelling: TypeAlias = Literal["sharp", "flat"]
 
 # 十二平均律中每种拼写偏好下，MIDI 音高对 12 取模后的 (音名, 变音记号)。
 # 例如 MIDI 61 在 "sharp" 下为 C#4，在 "flat" 下为 Db4。
-_SPELLINGS: Final[dict[Spelling, tuple[tuple[str, int], ...]]] = {
+SPELLINGS: Final[dict[Spelling, tuple[tuple[str, int], ...]]] = {
     "sharp": (
         ("C", 0), ("C", 1),
         ("D", 0), ("D", 1),
@@ -174,7 +169,7 @@ class Pitch:
         if not 0 <= midi <= 127:
             raise ValueError("MIDI note out of range")
 
-        table = _SPELLINGS.get(spelling)
+        table = SPELLINGS.get(spelling)
         if table is None:
             raise ValueError(f"Unknown spelling: {spelling!r}")
 
@@ -227,105 +222,6 @@ class Event:
             起点加上 ``offset`` 的新事件，时值与音高不变。
         """
         return Event(self.start + offset, self.duration, self.pitch)
-
-
-class Music:
-    """可组合的音乐片段基类。
-
-    子类必须实现 :attr:`duration` 与 :meth:`iter_events`；基类通过
-    ``+``、``|``、:meth:`repeat`、:meth:`transpose` 提供组合能力。
-    :meth:`events` 由 :meth:`iter_events` 派生，无需重写。
-    """
-
-    @property
-    def duration(self) -> Duration:
-        """片段的总时长，以四分音符为单位。
-
-        Returns:
-            子类实现的总时长。
-
-        Raises:
-            NotImplementedError: 子类未实现本属性。
-        """
-        raise NotImplementedError
-
-    def events(self) -> tuple[Event, ...]:
-        """将片段展开为事件元组（立即求值）。
-
-        等价于 ``tuple(self.iter_events())``。片段较长且只需前几个
-        事件时，应改用 :meth:`iter_events` 以提前停止计算。
-
-        Returns:
-            事件元组，其中每个事件的 ``start`` 均相对于片段起点。
-        """
-        return tuple(self.iter_events())
-
-    def iter_events(self) -> Iterator[Event]:
-        """惰性展开片段，逐个产出事件。
-
-        事件顺序与 :meth:`events` 完全一致，但不会一次性构造完整
-        元组；下游可以按需取用，甚至从大型或无限结构中只取前几项。
-
-        Returns:
-            事件迭代器，其中每个事件的 ``start`` 均相对于片段起点。
-
-        Raises:
-            NotImplementedError: 子类未实现本方法。
-        """
-        raise NotImplementedError
-
-    def __add__(self, other: Music) -> Sequence:
-        """串行组合：当前片段在前，``other`` 紧随其后。
-
-        Args:
-            other: 要接在当前片段之后的音乐片段。
-
-        Returns:
-            包含两个子片段的 :class:`Sequence`。
-        """
-        return Sequence((self, other))
-
-    def __or__(self, other: Music) -> Parallel:
-        """并行组合：两个片段同时开始。
-
-        Args:
-            other: 与当前片段同时演奏的音乐片段。
-
-        Returns:
-            包含两个子片段的 :class:`Parallel`。
-        """
-        return Parallel((self, other))
-
-    def repeat(self, count: int) -> Repeat:
-        """将当前片段重复 ``count`` 次。
-
-        Args:
-            count: 重复次数，必须为非负整数。
-
-        Returns:
-            重复后的 :class:`Repeat` 片段。
-
-        Raises:
-            ValueError: ``count`` 为负数。
-        """
-        if count < 0:
-            raise ValueError("Negative repeat count")
-        return Repeat(self, count)
-
-    def transpose(
-        self, semitones: int, *, spelling: Spelling = "sharp"
-    ) -> Transpose:
-        """将当前片段按半音数移调。
-
-        Args:
-            semitones: 移调的半音数，正值升高、负值降低。
-            spelling: 移调结果的等音拼写偏好：``"sharp"`` 使用升号，
-                ``"flat"`` 使用降号。
-
-        Returns:
-            移调后的 :class:`Transpose` 片段。
-        """
-        return Transpose(self, semitones, spelling)
 
 
 @dataclass(frozen=True)
@@ -408,166 +304,6 @@ class Rest(Music):
             什么也不产出。
         """
         yield from ()
-
-
-@dataclass(frozen=True)
-class Sequence(Music):
-    """串行组合：子片段依次播放。
-
-    Attributes:
-        children: 按播放顺序排列的子片段。
-    """
-
-    children: tuple[Music, ...]
-
-    @property
-    def duration(self) -> Duration:
-        """所有子片段时值之和。
-
-        Returns:
-            片段总时长。
-        """
-        return sum(
-            (child.duration for child in self.children),
-            Fraction(0)
-        )
-
-    def iter_events(self) -> Iterator[Event]:
-        """按顺序惰性产出子片段的事件，并将它们平移到各自的时间偏移。
-
-        Yields:
-            按子片段顺序拼接、起点已平移的事件。
-        """
-        offset = Fraction(0)
-
-        for child in self.children:
-            for event in child.iter_events():
-                yield event.shifted(offset)
-            offset += child.duration
-
-
-@dataclass(frozen=True)
-class Parallel(Music):
-    """并行组合：子片段同时开始。
-
-    Attributes:
-        children: 同时播放的子片段。
-    """
-
-    children: tuple[Music, ...]
-
-    @property
-    def duration(self) -> Duration:
-        """所有子片段中最长的时值；无子片段时为零。
-
-        Returns:
-            片段总时长。
-        """
-        return max(
-            (child.duration for child in self.children),
-            default=Fraction(0)
-        )
-
-    def iter_events(self) -> Iterator[Event]:
-        """依次惰性产出各子片段的事件，不做时间平移。
-
-        子片段按构造顺序依次展开：在完全取完前一个子片段之前，不会
-        开始展开下一个。
-
-        Yields:
-            所有子片段直接拼接的事件。
-        """
-        for child in self.children:
-            yield from child.iter_events()
-
-
-@dataclass(frozen=True)
-class Repeat(Music):
-    """重复片段：将源片段连续播放若干次。
-
-    Attributes:
-        source: 被重复的片段。
-        count: 重复次数。
-    """
-
-    source: Music
-    count: int
-
-    @property
-    def duration(self) -> Duration:
-        """源片段时值乘以重复次数。
-
-        Returns:
-            片段总时长。
-        """
-        return self.source.duration * self.count
-
-    def iter_events(self) -> Iterator[Event]:
-        """逐轮惰性产出源片段的事件，并将每轮平移到对应偏移。
-
-        Yields:
-            所有轮次拼接、起点已平移的事件。
-        """
-        for i in range(self.count):
-            offset = self.source.duration * i
-            for event in self.source.iter_events():
-                yield event.shifted(offset)
-
-
-@dataclass(frozen=True)
-class Transpose(Music):
-    """移调片段：将源片段的所有音高按半音数平移。
-
-    Attributes:
-        source: 被移调的片段。
-        semitones: 移调的半音数，正值升高、负值降低。
-        spelling: 移调结果的等音拼写偏好：``"sharp"`` 使用升号，
-            ``"flat"`` 使用降号。默认 ``"sharp"``。
-
-    Raises:
-        ValueError: 构造时 ``spelling`` 不是已知的拼写偏好。
-    """
-
-    source: Music
-    semitones: int
-    spelling: Spelling = "sharp"
-
-    def __post_init__(self) -> None:
-        """校验拼写偏好是否合法。
-
-        Raises:
-            ValueError: ``spelling`` 不是 ``"sharp"`` 或 ``"flat"``。
-        """
-        if self.spelling not in _SPELLINGS:
-            raise ValueError(f"Unknown spelling: {self.spelling!r}")
-
-    @property
-    def duration(self) -> Duration:
-        """移调不改变时值，与源片段相同。
-
-        Returns:
-            片段总时长。
-        """
-        return self.source.duration
-
-    def iter_events(self) -> Iterator[Event]:
-        """对源片段每个事件惰性应用音高平移。
-
-        移调量为 0 时保留源音高的拼写；否则按 ``spelling`` 决定等音
-        拼写，例如 MIDI 61 在 ``"sharp"`` 下记为 ``C#4``，在
-        ``"flat"`` 下记为 ``Db4``。
-
-        Yields:
-            移调后的事件。
-
-        Raises:
-            ValueError: 移调后的音高超出 MIDI 范围。
-        """
-        for event in self.source.iter_events():
-            pitch = event.pitch.transpose(
-                self.semitones, spelling=self.spelling
-            )
-            yield Event(event.start, event.duration, pitch)
 
 
 def N(name: str, length: Duration | int | str) -> Note:

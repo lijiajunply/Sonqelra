@@ -1,5 +1,5 @@
 from fractions import Fraction as F
-from muse.core.basic import N
+from muse.core import N
 
 theme = (
     N("C4", F(1, 4))

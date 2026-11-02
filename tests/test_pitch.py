@@ -2,7 +2,7 @@
 
 import pytest
 
-from muse.core.basic import Pitch
+from muse.core import Pitch
 
 
 class TestParse:

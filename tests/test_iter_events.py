@@ -6,7 +6,7 @@ from itertools import islice
 
 import pytest
 
-from muse.core.basic import (
+from muse.core import (
     Event,
     Music,
     N,
