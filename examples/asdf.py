@@ -1,27 +1,21 @@
 from fractions import Fraction as F
 from muse.core import N, Track
-from muse.core.work import Score
+from muse.core.work import Score, Tempo, TimeSignature
 
-theme = (
-    N("C4", F(1, 4))
-    + N("D4", F(1, 4))
-    + N("E4", F(1, 4))
-    + N("G4", F(1, 4))
+melody = (
+    N("C4", F(1, 4), velocity=90)
+    + N("E4", F(1, 4), velocity=80)
+    + N("G4", F(1, 2), velocity=100)
 )
 
-harmony = (
-    N("E4", F(1, 2))
-    + N("G4", F(1, 2))
+harmony = melody.transpose(-12)
+
+score = Score(
+    title="My First Music",
+    tempo=Tempo(120),
+    time_signature=TimeSignature(4, 4),
+    tracks=(
+        Track("Piano", "Piano", melody),
+        Track("Bass", "Acoustic Bass", harmony),
+    )
 )
-
-composition = theme | harmony
-
-track = Track(music=composition, instrument="Piano", name="My Track")
-
-score = Score(tracks=(track,), title="My Score")
-
-print(score)
-# 1
-
-for event in composition.events():
-    print(event.start, event.pitch.midi, event.duration)

@@ -1,0 +1,22 @@
+fn arpeggio(root: Pitch, count: Int) -> Music {
+    let pattern = [
+        root,
+        root + 4st,
+        root + 7st,
+        root + 12st
+    ]
+
+    return pattern
+        |> each(duration: 1/8)
+        |> repeat(count)
+}
+
+score "Generative Music" {
+    tempo 100
+
+    track piano {
+        play arpeggio(C4, 4)
+    }
+
+    export midi "generative.mid"
+}
