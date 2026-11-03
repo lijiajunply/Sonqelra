@@ -1,4 +1,5 @@
 from fractions import Fraction as F
+from muse.backends.mido import muse_to_midi
 from muse.core import N, Track
 from muse.core.work import Score, Tempo, TimeSignature
 
@@ -12,10 +13,10 @@ harmony = melody.transpose(-12)
 
 score = Score(
     title="My First Music",
-    tempo=Tempo(120),
-    time_signature=TimeSignature(4, 4),
     tracks=(
-        Track("Piano", "Piano", melody),
-        Track("Bass", "Acoustic Bass", harmony),
+        Track(music=melody, instrument="Piano", name="Piano"),
+        Track(music=harmony, instrument="Acoustic Bass", name="Bass"),
     )
 )
+
+muse_to_midi(score, "my_first_music.mid")

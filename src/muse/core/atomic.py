@@ -206,6 +206,7 @@ class Event:
         start: 事件在所属片段中的起点，以四分音符为单位。
         duration: 事件时值，以四分音符为单位。
         pitch: 事件对应的音高。
+        velocity: 事件的力度，取值范围为 ``0`` 到 ``127``。
     """
 
     start: Duration
@@ -223,6 +224,17 @@ class Event:
             起点加上 ``offset`` 的新事件，时值与音高不变。
         """
         return Event(self.start + offset, self.duration, self.pitch, self.velocity)
+
+    def __post_init__(self) -> None:
+        """校验时值是否为正。
+
+        Raises:
+            ValueError: 时值小于或等于零。
+        """
+        if self.duration <= 0:
+            raise ValueError("Event duration must be positive")
+        if not 0 <= self.velocity <= 127:
+            raise ValueError("Velocity must be in range 0-127")
 
 
 @dataclass(frozen=True)
