@@ -13,7 +13,7 @@
 from .atomic import Duration, Event, N, Note, Pitch, Rest, Spelling
 from .base import Music
 from .compose import Parallel, Repeat, Sequence, Transpose
-from .work import Track, Score, TempoMap, MeterMap, TimeSignature
+from .work import ControlChange, PitchBend, Track, Score, TempoMap, MeterMap, TimeSignature
 
 __all__ = [
     "Duration",
@@ -29,6 +29,8 @@ __all__ = [
     "Spelling",
     "Transpose",
     "Track",
+    "ControlChange",
+    "PitchBend",
     "Score",
     "TempoMap",
     "MeterMap",

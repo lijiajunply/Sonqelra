@@ -147,3 +147,58 @@ def test_export_rejects_too_many_tracks(tmp_path):
     score = Score(tuple(Track(N("C4", 1), "Piano", str(i)) for i in range(16)), "Test")
     with pytest.raises(ValueError, match="15 melodic tracks"):
         muse_to_midi(score, str(tmp_path / "test.mid"))
+
+
+def test_midi_round_trip_preserves_channel_controls_drums_and_exact_tempo(tmp_path):
+    from mido import Message, MetaMessage, MidiTrack
+    from muse.backends.mido import midi_to_muse
+    from muse.core import ControlChange, PitchBend
+
+    source = MidiFile(ticks_per_beat=480)
+    source.tracks.extend([
+        MidiTrack([
+            MetaMessage("set_tempo", tempo=500001),
+            Message("control_change", channel=9, control=64, value=127, time=120),
+            Message("pitchwheel", channel=9, pitch=-1024, time=120),
+            Message("control_change", channel=9, control=64, value=0, time=480),
+        ]),
+        MidiTrack([
+            Message("program_change", channel=9, program=8),
+            Message("note_on", channel=9, note=36, velocity=90),
+            Message("note_off", channel=9, note=36, time=480),
+        ]),
+    ])
+    path = tmp_path / "source.mid"
+    source.save(path)
+    score = midi_to_muse(str(path))
+    assert score.tempo_map.tempo == ((Fraction(0), Fraction(60000000, 500001)),)
+    assert score.tracks[0].is_percussion
+    assert score.tracks[0].controls == (
+        ControlChange(Fraction(1, 4), 64, 127), PitchBend(Fraction(1, 2), -1024),
+        ControlChange(Fraction(3, 2), 64, 0),
+    )
+    output = tmp_path / "output.mid"
+    muse_to_midi(score, str(output))
+    messages = MidiFile(output).tracks[0]
+    assert next(m.tempo for m in messages if m.type == "set_tempo") == 500001
+    assert next((m.channel, m.program) for m in messages if m.type == "program_change") == (9, 8)
+    assert all(m.channel == 9 for m in messages if m.type in {"note_on", "note_off", "control_change", "pitchwheel"})
+    restored = midi_to_muse(str(output))
+    assert restored.tracks[0].controls == score.tracks[0].controls
+    assert restored.tempo_map == score.tempo_map
+
+
+def test_midi_import_preserves_controls_without_notes(tmp_path):
+    from mido import Message, MidiTrack
+    from muse.backends.mido import midi_to_muse
+    from muse.core import ControlChange
+
+    source = MidiFile()
+    source.tracks.append(MidiTrack([Message("control_change", channel=3, control=64, value=127, time=240)]))
+    path = tmp_path / "control.mid"
+    source.save(path)
+    score = midi_to_muse(str(path))
+    assert score.tracks[0].controls == (ControlChange(Fraction(1, 2), 64, 127),)
+    output = tmp_path / "control-out.mid"
+    muse_to_midi(score, str(output))
+    assert midi_to_muse(str(output)).tracks[0].controls == score.tracks[0].controls

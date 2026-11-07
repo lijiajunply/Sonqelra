@@ -18,7 +18,7 @@ from typing import TypeAlias
 
 # 乐器类型
 Instrument: TypeAlias = str  # TODO: 设计乐器类型
-Tempo: TypeAlias = int  # 每分钟节拍数，Tempo = 120 表示每分钟 120 个四分音符。
+Tempo: TypeAlias = int | float | Fraction  # 每分钟四分音符数。
 
 # General MIDI Level 1 instrument names, in zero-based program order.
 _GM_INSTRUMENTS = (
@@ -61,6 +61,29 @@ def _validate_change_positions(
             )
 
 @dataclass(frozen=True)
+class ControlChange:
+    """指定位置的 MIDI 控制器变化；例如控制器 64 是延音踏板。"""
+    start: Fraction
+    control: int
+    value: int
+
+    def __post_init__(self) -> None:
+        if self.start < 0 or not 0 <= self.control <= 127 or not 0 <= self.value <= 127:
+            raise ValueError("Invalid MIDI control change")
+
+
+@dataclass(frozen=True)
+class PitchBend:
+    """指定位置的 MIDI 弯音，范围为 -8192 到 8191。"""
+    start: Fraction
+    pitch: int
+
+    def __post_init__(self) -> None:
+        if self.start < 0 or not -8192 <= self.pitch <= 8191:
+            raise ValueError("Invalid MIDI pitch bend")
+
+
+@dataclass(frozen=True)
 class Track:
     """轨道：将片段绑定到乐器。
 
@@ -72,6 +95,8 @@ class Track:
     music: Music
     instrument: Instrument
     name: str
+    is_percussion: bool = False
+    controls: tuple[ControlChange | PitchBend, ...] = ()
 
     def __post_init__(self) -> None:
         if not self.name:

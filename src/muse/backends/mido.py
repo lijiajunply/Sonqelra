@@ -2,15 +2,15 @@ from collections import defaultdict, deque
 from fractions import Fraction
 from pathlib import Path
 
-from mido import MidiFile, MidiTrack, MetaMessage, Message, bpm2tempo, tempo2bpm
+from mido import MidiFile, MidiTrack, MetaMessage, Message, bpm2tempo
 from muse.core import Note, Parallel, Pitch, Rest, Sequence
-from muse.core.work import MeterMap, Score, TempoMap, TimeSignature, Track, _GM_INSTRUMENTS
+from muse.core.work import ControlChange, PitchBend, MeterMap, Score, TempoMap, TimeSignature, Track, _GM_INSTRUMENTS
 
 def midi_to_muse(file: str) -> Score:
     """导入标准 MIDI 文件，时间以四分音符为单位。
 
-    同一轨道中的不同通道或乐器会拆成多条 Muse 轨道。控制器、踏板、
-    弯音和打击乐音色等目前无法在 Score 中表示，因此不予转换。
+    同一轨道中的不同通道或乐器会拆成多条 Muse 轨道。控制器和弯音
+    按 MIDI 通道复制到对应的轨道；通道 10 表示打击乐。
     不支持异步的 type 2 文件和 SMPTE 时间格式。
     """
     midi_file = MidiFile(file)
@@ -24,6 +24,9 @@ def midi_to_muse(file: str) -> Score:
     meters = {0: TimeSignature(4, 4)}
     metadata = []
     tracks = []
+    channel_controls = defaultdict(list)
+    control_parts = {}
+    parts_by_track = []
 
     for index, track in enumerate(midi_file.tracks):
         tick = 0
@@ -36,6 +39,12 @@ def midi_to_muse(file: str) -> Score:
                 metadata.append((tick, index, msg))
             elif msg.type == "program_change":
                 programs[msg.channel] = msg.program
+            elif msg.type == "control_change":
+                channel_controls[msg.channel].append((tick, index, ControlChange(Fraction(tick, ticks_per_beat), msg.control, msg.value)))
+                control_parts.setdefault(msg.channel, (index, programs[msg.channel]))
+            elif msg.type == "pitchwheel":
+                channel_controls[msg.channel].append((tick, index, PitchBend(Fraction(tick, ticks_per_beat), msg.pitch)))
+                control_parts.setdefault(msg.channel, (index, programs[msg.channel]))
             elif msg.type == "note_on" and msg.velocity > 0:
                 active[(msg.channel, msg.note)].append(
                     (tick, msg.velocity, programs[msg.channel])
@@ -56,18 +65,30 @@ def midi_to_muse(file: str) -> Score:
         if any(active.values()):
             raise ValueError(f"Unclosed notes in MIDI track {index}")
 
+        parts_by_track.append((index, track.name, tick, parts))
+
+    note_channels = {channel for _, _, _, parts in parts_by_track for channel, _ in parts}
+    for channel, (index, program) in control_parts.items():
+        if channel not in note_channels:
+            parts_by_track[index][3][(channel, program)] = []
+
+    for index, track_name, tick, parts in parts_by_track:
         for (channel, program), notes in parts.items():
-            name = track.name or f"Track {index + 1}"
+            name = track_name or f"Track {index + 1}"
             if len(parts) > 1:
                 name += f" (channel {channel + 1}, program {program + 1})"
             # Retain silence through the end-of-track marker.
             music = Parallel((*notes, Rest(Fraction(tick, ticks_per_beat))))
-            tracks.append(Track(music=music, instrument=_GM_INSTRUMENTS[program], name=name))
+            controls = tuple(item[2] for item in sorted(channel_controls[channel], key=lambda item: (item[0], item[1])))
+            tracks.append(Track(music=music, instrument=_GM_INSTRUMENTS[program], name=name,
+                                is_percussion=channel == 9, controls=controls))
 
     # For simultaneous changes, later events in track order take precedence.
     for tick, _, msg in sorted(metadata, key=lambda item: (item[0], item[1])):
         if msg.type == "set_tempo":
-            tempos[tick] = round(tempo2bpm(msg.tempo))
+            if msg.tempo == 0:
+                raise ValueError("MIDI tempo must be positive")
+            tempos[tick] = Fraction(60_000_000, msg.tempo)
         else:
             meters[tick] = TimeSignature(msg.numerator, msg.denominator)
 
@@ -84,8 +105,12 @@ def muse_to_midi(score: Score, file: str) -> None:
     """导出 MIDI；音乐时间必须能以 480 ticks/四分音符精确表示。"""
     mid = MidiFile()
     channels = [channel for channel in range(16) if channel != 9]
-    if len(score.tracks) > len(channels):
+    if sum(not track.is_percussion for track in score.tracks) > len(channels):
         raise ValueError("MIDI export supports at most 15 melodic tracks")
+    percussion_programs = {track.instrument_to_midi_program() for track in score.tracks if track.is_percussion}
+    if len(percussion_programs) > 1:
+        raise ValueError("MIDI percussion tracks sharing channel 10 must use the same program")
+    melodic_channels = iter(channels)
 
     def to_tick(position):
         ticks = position * mid.ticks_per_beat
@@ -94,7 +119,7 @@ def muse_to_midi(score: Score, file: str) -> None:
         return int(ticks)
 
     for index, track in enumerate(score.tracks):
-        channel = channels[index]
+        channel = 9 if track.is_percussion else next(melodic_channels)
         midi_track = MidiTrack()
         mid.tracks.append(midi_track)
 
@@ -103,6 +128,15 @@ def muse_to_midi(score: Score, file: str) -> None:
             (0, MetaMessage("track_name", name=track.name)),
             (0, Message("program_change", channel=channel, program=track.instrument_to_midi_program())),
         ]
+
+        for control in track.controls:
+            if isinstance(control, ControlChange):
+                message = Message("control_change", channel=channel, control=control.control, value=control.value)
+            elif isinstance(control, PitchBend):
+                message = Message("pitchwheel", channel=channel, pitch=control.pitch)
+            else:
+                raise ValueError(f"Unsupported track control: {control!r}")
+            events.append((to_tick(control.start), message))
 
         # Add tempo and time signature
         for tempo_change in score.tempo_map.tempo if index == 0 else ():
