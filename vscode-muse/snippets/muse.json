@@ -1,0 +1,22 @@
+{
+  "Score": {
+    "prefix": "score",
+    "body": ["score \"${1:Title}\" {", "    tempo ${2:120}", "    meter ${3:4/4}", "", "    melody ${4:theme} {", "        ${5:C4}:1/4", "    }", "", "    track \"${6:Piano}\" {", "        instrument \"${7:Piano}\"", "        play ${4:theme}", "    }", "", "    export midi \"${8:output.mid}\"", "}"],
+    "description": "Create a score with a melody, track and MIDI export"
+  },
+  "Melody": {
+    "prefix": "melody",
+    "body": ["melody ${1:theme} {", "    ${2:C4}:${3:1/4}", "    $0", "}"],
+    "description": "Create a melody"
+  },
+  "Track": {
+    "prefix": "track",
+    "body": ["track \"${1:Piano}\" {", "    instrument \"${2:Piano}\"", "    play ${3:theme}", "}"],
+    "description": "Create a track"
+  },
+  "Function": {
+    "prefix": "fn",
+    "body": ["fn ${1:name}(${2:pitch}: Pitch) -> Music {", "    return ${3:note(${2:pitch}, 1)}", "}"],
+    "description": "Create a Muse function"
+  }
+}

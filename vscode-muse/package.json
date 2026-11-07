@@ -1,8 +1,8 @@
 {
   "name": "muse-lang",
   "displayName": "Muse Language",
-  "description": "Syntax highlighting and compilation for Muse music files.",
-  "version": "0.1.0",
+  "description": "Syntax highlighting, completion, navigation and compilation for Muse music files.",
+  "version": "0.2.0",
   "publisher": "muse-lang",
   "engines": {
     "vscode": "^1.85.0"
@@ -80,6 +80,12 @@
           "column": 3,
           "message": 4
         }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "muse",
+        "path": "./snippets/muse.json"
       }
     ]
   },

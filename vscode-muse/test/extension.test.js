@@ -21,6 +21,7 @@ test('compile saves and passes the filename as a process argument', async () => 
   let command, task, saved = false;
   const document = { languageId: 'muse', isUntitled: false, isDirty: true, uri: { scheme: 'file', fsPath: '/tmp/a score.muse' }, fileName: '/tmp/a score.muse', save: async () => { saved = true; return true; } };
   const vscode = {
+    languages: { registerCompletionItemProvider: () => ({}), registerHoverProvider: () => ({}), registerDefinitionProvider: () => ({}) },
     commands: { registerCommand: (_, callback) => { command = callback; return {}; } },
     window: { activeTextEditor: { document }, showErrorMessage: assert.fail },
     workspace: { getWorkspaceFolder: () => undefined, getConfiguration: () => ({ get: () => '/tmp/my python' }) },
@@ -37,4 +38,29 @@ test('compile saves and passes the filename as a process argument', async () => 
   assert.equal(task.args[4].executable, '/tmp/my python');
   assert.deepEqual(task.args[4].args, ['-m', 'muse_lang', '/tmp/a score.muse']);
   assert.deepEqual(task.args[5], ['$muse']);
+});
+
+const language = require('../language');
+test('visible symbols respect declaration order and lexical scopes', () => {
+  const text = `fn outer(p: Pitch) -> Music {
+  let local = note(p, 1)
+  return local
+}
+score "x" {
+  melody tune { C4:1/4 }
+  let part = tune
+  track piano { play part }
+}
+score "y" {
+  let last = outer(C4)
+}`;
+  const names = at => language.visibleSymbols(text, text.indexOf(at)).map(x => x.name);
+  assert.deepEqual(names('return local'), ['p', 'local', 'outer']);
+  assert.deepEqual(names('play part'), ['tune', 'part', 'outer']);
+  assert.deepEqual(names('let last'), ['outer']);
+  assert.deepEqual(names('let part'), ['tune', 'outer']);
+});
+test('comments and strings do not create symbols or scopes', () => {
+  const text = 'score "let fake {" {\n // let ghost = 1 }\n let real = 1\n play real\n}';
+  assert.deepEqual(language.visibleSymbols(text, text.indexOf('play')).map(x => x.name), ['real']);
 });
