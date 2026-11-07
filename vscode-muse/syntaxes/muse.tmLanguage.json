@@ -1,0 +1,19 @@
+{
+  "name": "Muse",
+  "scopeName": "source.muse",
+  "patterns": [
+    { "name": "comment.line.double-slash.muse", "match": "//.*$" },
+    { "name": "string.quoted.double.muse", "begin": "\"", "end": "\"|$", "patterns": [
+      { "name": "constant.character.escape.muse", "match": "\\\\[\\\\\"nrt]" },
+      { "name": "invalid.illegal.escape.muse", "match": "\\\\." }
+    ] },
+    { "name": "keyword.control.muse", "match": "\\b(?:score|tempo|meter|key|melody|let|fn|return|track|instrument|percussion|play|export)\\b" },
+    { "name": "constant.language.boolean.muse", "match": "\\b(?:true|false)\\b" },
+    { "name": "storage.type.muse", "match": "\\b(?:Pitch|Music|Int|Number|Interval|List)\\b" },
+    { "name": "support.function.muse", "match": "\\b(?:note|rest|chord|sequence|transpose|repeat)\\b(?=\\s*\\()" },
+    { "name": "constant.language.music.muse", "match": "(?<![A-Za-z_0-9#])[A-G](?:#+|b+)?-?\\d+(?![A-Za-z_0-9#])" },
+    { "name": "constant.numeric.interval.muse", "match": "(?<![A-Za-z_0-9])-?\\d+st(?![A-Za-z_0-9])" },
+    { "name": "constant.numeric.muse", "match": "(?<![A-Za-z_0-9])-?\\d+(?![A-Za-z_0-9])" },
+    { "name": "keyword.operator.muse", "match": "\\|>|->|[+|=/:@<>]" }
+  ]
+}

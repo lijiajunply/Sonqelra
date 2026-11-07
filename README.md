@@ -69,3 +69,7 @@ execute_exports(result, base_dir=path.parent, exporters={"custom": export_custom
 ```
 
 这样源文件即可使用 `export custom "output.ext"`。注入的同名导出器会覆盖内置实现；未知格式在写入任何文件前报错。语言语法和语义见 [Muse 语言设计](docs/muse-lang-design.md)。
+
+### VS Code 扩展
+
+仓库中的 [Muse Language 扩展](vscode-muse/README.md) 支持 `.muse` 语法高亮和运行编译及导出命令。安装方法及 Python 解释器设置见扩展说明。
