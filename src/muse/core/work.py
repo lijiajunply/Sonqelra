@@ -62,7 +62,13 @@ def _validate_change_positions(
 
 @dataclass(frozen=True)
 class ControlChange:
-    """指定位置的 MIDI 控制器变化；例如控制器 64 是延音踏板。"""
+    """指定位置的 MIDI 控制器变化；例如控制器 64 是延音踏板。
+    
+    Attributes:
+        start: 变化的起始时间（以四分音符为单位）。
+        control: MIDI 控制器编号（0-127）。
+        value: MIDI 控制器值（0-127）。
+    """
     start: Fraction
     control: int
     value: int
@@ -74,7 +80,13 @@ class ControlChange:
 
 @dataclass(frozen=True)
 class PitchBend:
-    """指定位置的 MIDI 弯音，范围为 -8192 到 8191。"""
+    """指定位置的 MIDI 弯音，范围为 -8192 到 8191。
+    
+
+    Attributes:
+        start: 变化的起始时间（以四分音符为单位）。
+        pitch: MIDI 弯音值（-8192 到 8191）。
+    """
     start: Fraction
     pitch: int
 
@@ -90,6 +102,9 @@ class Track:
     Attributes:
         music: 轨道的片段。
         instrument: 轨道的乐器。
+        name: 轨道的名称。
+        is_percussion: 是否为打击乐轨道。
+        controls: 轨道的控制器变化列表。
     """
 
     music: Music
