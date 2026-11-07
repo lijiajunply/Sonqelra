@@ -7,7 +7,7 @@
 - ``TempoMap``：全局速度映射。
 - ``MeterMap``：全局拍号映射。
 
-目前尚未实现，待作品层设计确定后补充。
+时间位置以四分音符为单位。
 """
 
 from dataclasses import dataclass, field

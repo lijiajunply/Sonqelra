@@ -170,6 +170,9 @@ class TestRepeat:
 
 
 class TestTranspose:
+    def test_transpose_preserves_velocity(self) -> None:
+        assert N("C4", 1, 42).transpose(2).events()[0].velocity == 42
+
     def test_shifts_pitches_and_keeps_timing(self) -> None:
         music = (
             N("C4", Fraction(1, 2)) + N("E4", Fraction(1, 2))

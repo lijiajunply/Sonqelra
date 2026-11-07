@@ -100,3 +100,50 @@ def test_midi_import_rejects_unclosed_note(tmp_path):
     midi.save(path)
     with pytest.raises(ValueError, match="Unclosed notes"):
         midi_to_muse(str(path))
+
+
+def test_multitrack_export_round_trip(tmp_path):
+    from muse.backends.mido import midi_to_muse
+    from muse.core import MeterMap, Rest, TimeSignature
+
+    melody = N("C4", 1, 65).transpose(2) + Rest(Fraction(1, 2)) + N("E4", 1, 90)
+    harmony = (N("C3", 2, 55) | N("G3", 2, 60)) + Rest(Fraction(1))
+    original = Score(
+        tracks=(Track(melody, "Piano", "Melody"), Track(harmony, "Violin", "Harmony")),
+        title="Example",
+        tempo_map=TempoMap(((Fraction(0), 100),)),
+        meter_map=MeterMap(((Fraction(0), TimeSignature(3, 4)),)),
+    )
+    path = tmp_path / "multitrack.mid"
+    muse_to_midi(original, str(path))
+    midi = MidiFile(path)
+    assert [[(m.channel, m.program) for m in t if m.type == "program_change"] for t in midi.tracks] == [[(0, 0)], [(1, 40)]]
+    restored = midi_to_muse(str(path))
+    assert [t.instrument for t in restored.tracks] == ["Acoustic Grand Piano", "Violin"]
+    assert restored.tempo_map == original.tempo_map
+    assert restored.meter_map == original.meter_map
+    for source, result in zip(original.tracks, restored.tracks):
+        assert sorted(source.music.events(), key=lambda e: (e.start, e.pitch.midi)) == sorted(result.music.events(), key=lambda e: (e.start, e.pitch.midi))
+        assert source.music.duration == result.music.duration
+
+
+def test_export_rejects_unrepresentable_time_and_ambiguous_notes(tmp_path):
+    import pytest
+
+    def export(music):
+        muse_to_midi(Score((Track(music, "Piano", "Test"),), "Test"), str(tmp_path / "test.mid"))
+
+    with pytest.raises(ValueError, match="cannot be represented exactly"):
+        export(N("C4", Fraction(1, 7)))
+    with pytest.raises(ValueError, match="Overlapping notes"):
+        export(N("C4", 2) | N("C4", 1))
+    with pytest.raises(ValueError, match="velocity"):
+        export(N("C4", 1, 0))
+
+
+def test_export_rejects_too_many_tracks(tmp_path):
+    import pytest
+
+    score = Score(tuple(Track(N("C4", 1), "Piano", str(i)) for i in range(16)), "Test")
+    with pytest.raises(ValueError, match="15 melodic tracks"):
+        muse_to_midi(score, str(tmp_path / "test.mid"))

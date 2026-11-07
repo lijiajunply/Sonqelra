@@ -81,26 +81,41 @@ def midi_to_muse(file: str) -> Score:
     )
 
 def muse_to_midi(score: Score, file: str) -> None:
+    """导出 MIDI；音乐时间必须能以 480 ticks/四分音符精确表示。"""
     mid = MidiFile()
-    for track in score.tracks:
+    channels = [channel for channel in range(16) if channel != 9]
+    if len(score.tracks) > len(channels):
+        raise ValueError("MIDI export supports at most 15 melodic tracks")
+
+    def to_tick(position):
+        ticks = position * mid.ticks_per_beat
+        if ticks < 0 or ticks != int(ticks):
+            raise ValueError(f"Time {position} cannot be represented exactly at {mid.ticks_per_beat} ticks per quarter note")
+        return int(ticks)
+
+    for index, track in enumerate(score.tracks):
+        channel = channels[index]
         midi_track = MidiTrack()
         mid.tracks.append(midi_track)
 
         # Collect absolute timestamps, then convert them to MIDI delta times.
-        events = [(0, MetaMessage("track_name", name=track.name))]
+        events = [
+            (0, MetaMessage("track_name", name=track.name)),
+            (0, Message("program_change", channel=channel, program=track.instrument_to_midi_program())),
+        ]
 
         # Add tempo and time signature
-        for tempo_change in score.tempo_map.tempo:
+        for tempo_change in score.tempo_map.tempo if index == 0 else ():
             events.append(
-                (int(tempo_change[0] * mid.ticks_per_beat), MetaMessage(
+                (to_tick(tempo_change[0]), MetaMessage(
                     "set_tempo",
                     tempo=bpm2tempo(tempo_change[1]),
                 ))
             )
 
-        for meter_change in score.meter_map.meter:
+        for meter_change in score.meter_map.meter if index == 0 else ():
             events.append(
-                (int(meter_change[0] * mid.ticks_per_beat), MetaMessage(
+                (to_tick(meter_change[0]), MetaMessage(
                     "time_signature",
                     numerator=meter_change[1].numerator,
                     denominator=meter_change[1].denominator,
@@ -108,23 +123,36 @@ def muse_to_midi(score: Score, file: str) -> None:
             )
 
         # Add notes
+        intervals = defaultdict(list)
         for note in track.music.iter_events():
+            if note.velocity == 0:
+                raise ValueError("MIDI note-on velocity must be between 1 and 127")
+            start, end = to_tick(note.start), to_tick(note.start + note.duration)
+            intervals[note.pitch.midi].append((start, end))
             events.append(
-                (int(note.start * mid.ticks_per_beat), Message(
+                (start, Message(
                     "note_on",
+                    channel=channel,
                     note=note.pitch.midi,
                     velocity=note.velocity,
                 ))
             )
             events.append(
-                (int((note.start + note.duration) * mid.ticks_per_beat), Message(
+                (end, Message(
                     "note_off",
+                    channel=channel,
                     note=note.pitch.midi,
                     velocity=0,
                 ))
             )
-        # Release notes before starting new ones at the same timestamp.
-        events.sort(key=lambda event: (event[0], event[1].type == "note_on"))
+        for pitch, spans in intervals.items():
+            spans.sort()
+            if any(current[0] < previous[1] for previous, current in zip(spans, spans[1:])):
+                raise ValueError(f"Overlapping notes with MIDI pitch {pitch} in track {track.name!r}")
+        # Preserve trailing rests, and release notes before starting new ones.
+        end_tick = max(to_tick(track.music.duration), *(tick for tick, _ in events))
+        events.append((end_tick, MetaMessage("end_of_track")))
+        events.sort(key=lambda event: (event[0], event[1].type == "end_of_track", event[1].type == "note_on"))
         previous_tick = 0
         for tick, message in events:
             midi_track.append(message.copy(time=tick - previous_tick))

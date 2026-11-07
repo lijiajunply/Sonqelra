@@ -178,4 +178,4 @@ class Transpose(Music):
             pitch = event.pitch.transpose(
                 self.semitones, spelling=self.spelling
             )
-            yield Event(event.start, event.duration, pitch)
+            yield Event(event.start, event.duration, pitch, event.velocity)
