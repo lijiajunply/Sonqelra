@@ -97,3 +97,59 @@ def test_melody_rest_velocity_rejected():
 
 def test_no_call_trailing_comma():
     with pytest.raises(ParseError): compile_source('score "x" {\n let x = note(C4, 1,)\n}')
+
+
+def test_musicxml_and_midi_exports_from_language(tmp_path):
+    from xml.etree import ElementTree
+    source = '''score "Example" {
+ track piano {
+  instrument "Piano"
+  play note(C4, 1)
+ }
+ export midi "out.mid"
+ export musicxml "out.musicxml"
+}'''
+    result = compile_source(source)
+    assert [plan.format for plan in result.exports] == ['midi', 'musicxml']
+    assert list(tmp_path.iterdir()) == []
+    execute_exports(result, base_dir=tmp_path)
+    assert len(MidiFile(tmp_path / 'out.mid').tracks) == 1
+    root = ElementTree.parse(tmp_path / 'out.musicxml').getroot()
+    assert root.findtext('work/work-title') == 'Example'
+    assert root.findtext('part/measure/note/pitch/step') == 'C'
+
+
+def test_custom_exporter_and_unknown_format_preflight(tmp_path):
+    source = '''score "Example" {
+ track piano {
+  instrument "Piano"
+  play note(C4, 1)
+ }
+ export midi "out.mid"
+ export custom "out.txt"
+}'''
+    result = compile_source(source, filename='example.muse')
+    with pytest.raises(ExportError, match='Unknown export format: custom') as exc:
+        execute_exports(result, base_dir=tmp_path)
+    assert exc.value.span.start.line == 7
+    assert list(tmp_path.iterdir()) == []
+    def custom(score, path):
+        Path(path).write_text(score.title, encoding='utf-8')
+    execute_exports(result, base_dir=tmp_path, exporters={'custom': custom})
+    assert (tmp_path / 'out.txt').read_text(encoding='utf-8') == 'Example'
+    assert (tmp_path / 'out.mid').exists()
+
+
+def test_musicxml_cli(tmp_path):
+    import subprocess
+    import sys
+    source = tmp_path / 'song.muse'
+    source.write_text('''score "CLI" {
+ track piano {
+  instrument "Piano"
+  play note(C4, 1)
+ }
+ export musicxml "out.musicxml"
+}''', encoding='utf-8')
+    subprocess.run([sys.executable, '-m', 'muse_lang', str(source)], check=True, cwd=ROOT)
+    assert (tmp_path / 'out.musicxml').exists()

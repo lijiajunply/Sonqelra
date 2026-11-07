@@ -52,4 +52,20 @@ score = result.scores[0].score
 execute_exports(result, base_dir=path.parent)
 ```
 
-也可以运行 `python -m muse_lang examples/asdf.muse`；命令以源文件所在目录解析导出路径。语言语法和语义见 [Muse 语言设计](docs/muse-lang-design.md)。
+在 Muse 源文件的 `score` 内可以直接声明导出格式：
+
+```muse
+export midi "output.mid"
+export musicxml "output.musicxml"
+```
+
+运行 `python -m muse_lang examples/asdf.muse` 执行导出；相对路径以源文件所在目录为基准。编译不会写文件。除内置的 `midi` 和 `musicxml` 外，Python 调用方可在执行时注入其他导出器：
+
+```python
+def export_custom(score, path):
+    ...  # 将 score 写入 path
+
+execute_exports(result, base_dir=path.parent, exporters={"custom": export_custom})
+```
+
+这样源文件即可使用 `export custom "output.ext"`。注入的同名导出器会覆盖内置实现；未知格式在写入任何文件前报错。语言语法和语义见 [Muse 语言设计](docs/muse-lang-design.md)。

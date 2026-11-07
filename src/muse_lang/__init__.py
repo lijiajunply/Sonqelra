@@ -1,4 +1,4 @@
-"""Muse language compiler and explicit MIDI export API."""
+"""Muse language compiler and explicit export API."""
 from .compiler import CompilationResult, ExportPlan, KeySignature, ScoreResult, compile_source, execute_exports
 from .errors import MuseError, LexError, ParseError, SemanticError, ExportError
 

@@ -27,6 +27,7 @@ score "First Composition" {
     }
 
     export midi "output.mid"
+    export musicxml "output.musicxml"
 }
 ```
 
@@ -42,7 +43,7 @@ let harmony = chord(pattern, duration: 1/2)
 let arpeggio = sequence(pattern, duration: 1/8)
 ```
 
-当前 `src/muse_lang` 尚未实现，本文是实现契约。现有 Python API 保持不变。
+语言实现位于 `src/muse_lang`。
 
 ## 乐谱与音符
 
@@ -64,7 +65,7 @@ melody phrase {
 
 `track piano` 中的 `piano` 是标识符，也是默认的轨道名称 `"piano"`。需要保留空格和大小写时可写 `track "Lead Guitar"`。音轨内必须恰有一个 `instrument "..."` 和一个 `play 表达式`；可选 `percussion true`，默认为 `false`。乐器名使用现有 General MIDI 名称。`play theme + variation` 将 `+` 两侧的音乐片段串接；`|` 将音乐片段并行叠加，总时长取最长者。
 
-`export midi "output.mid"` 绑定到所在乐谱，生成导出计划。多个导出语句可以出现在同一乐谱；无导出语句时仍可获得 `Score`。编译本身不写文件，单独执行导出计划。
+`export midi "output.mid"` 和 `export musicxml "output.musicxml"` 绑定到所在乐谱，生成包含格式名和路径的导出计划。多个导出语句可以出现在同一乐谱；无导出语句时仍可获得 `Score`。编译本身不写文件，单独执行导出计划。格式名为标识符；运行时通过导出器表解析，未知格式会在写入任何文件前报错。Python 调用方可通过 `execute_exports(..., exporters={"格式名": 导出函数})` 扩展或覆盖导出器，函数签名为 `(score, path)`。
 
 ## 表达式与作用域
 
@@ -90,21 +91,21 @@ melody phrase {
 | 旋律串接、并行、重复、移调 | `Music.__add__`、`Music.__or__`、`Music.repeat`、`Music.transpose` |
 | `chord` / `sequence` | 对每个音高构造相同时值和力度的 `Note`，分别用 `Parallel` / `Sequence` 组合 |
 | 音轨与打击乐 | `Track(name=..., instrument=..., music=..., is_percussion=...)` |
-| MIDI 导出 | 对对应 `Score` 调用 `muse_to_midi` |
+| 导出 | 按格式名将对应 `Score` 交给导出器；内置 MIDI 和 MusicXML |
 
 调性元数据保留在编译结果中，不能默认为已经存在于 `Score` 或导出文件。若以后要让 MIDI 保存调性，应先扩展核心模型和后端，再明确增量兼容行为。音频合成、外部命令、控制器、弯音和速度/拍号变化不在第一版语言范围。
 
 ## 前端结构
 
 ```text
-源码 → lexer → tokens → parser → AST → compiler → 编译结果 → 显式执行 MIDI 导出
+源码 → lexer → tokens → parser → AST → compiler → 编译结果 → 通过导出器表执行导出
 ```
 
 - `lexer.py`：词法分析，识别关键字、标识符、音高、数字、`st` 音程、字符串、注释和运算符，给 token 附源位置。
 - `ast.py`：定义不可变 AST 和 `Span`，不依赖核心音乐对象。`MeterLiteral` 保留原始分子和分母；`NoteLiteral` 保留谱面时值；数组和管道保留源码结构。
 - `parser.py`：构造 AST，不求值或写文件；保留乐谱及轨道内字段顺序，便于发现重复声明。
 - `compiler.py`：检查名称、类型及约束，求值并构造核心对象；只生成导出计划，不访问文件系统，也不使用 Python `eval`。
-- `__init__.py`：公开 `compile_source(source, *, filename="<string>")` 与结果和错误类型。将来 CLI 读取源码并显式执行导出。
+- `__init__.py`：公开 `compile_source(source, *, filename="<string>")` 与结果和错误类型。CLI 读取源码并显式执行导出。
 
 `CompilationResult` 按源顺序保存作品结果和导出计划。每个作品结果包含 `score: Score` 和可选的调性元数据；每条导出计划关联对应作品、路径及源范围。`execute_exports(result, *, base_dir)` 以 `base_dir` 解析相对路径，绝对路径按原样处理；重复输出目标在写入前报错。CLI 以源文件所在目录作为 `base_dir`。多个文件导出不是事务性的，失败时可能已有部分输出。
 
@@ -128,7 +129,7 @@ melody       = "melody" IDENT "{" NL* (melody_item NL*)+ "}" end ;
 melody_item  = (PITCH | "rest") ":" INT "/" INT ("@" INT)? end ;
 track        = "track" (IDENT | STRING) "{" NL* (track_item NL*)* "}" end ;
 track_item   = "instrument" STRING end | "percussion" BOOL end | "play" expr end ;
-export       = "export" "midi" STRING end ;
+export       = "export" IDENT STRING end ;
 let_stmt     = "let" IDENT "=" expr end ;
 fn_decl      = "fn" IDENT "(" params? ")" "->" type "{" NL*
                (let_stmt NL*)* "return" expr end NL* "}" end ;

@@ -65,7 +65,9 @@ class Parser:
             while not self.is_('}'):
                 items.append(self.statement('track')); self.end()
             self.take('}'); return self.node(k,s,name,items)
-        if k == 'export' and context == 'score': self.take(); self.take('midi'); return self.node(k,s,self.take('STRING').value)
+        if k == 'export' and context == 'score':
+            self.take(); format_name = self.take('IDENT').value; path = self.take('STRING').value
+            return self.node(k, s, (format_name, path))
         if k == 'instrument' and context == 'track': self.take(); return self.node(k,s,self.take('STRING').value)
         if k == 'percussion' and context == 'track':
             self.take(); t=self.take('IDENT')

@@ -6,7 +6,7 @@ import re
 from muse.core import Pitch, Note, Rest, Sequence, Parallel
 from muse.core.base import Music
 from muse.core.work import Score, Track, TempoMap, MeterMap, TimeSignature
-from muse.backends.mido import muse_to_midi
+from .exporters import DEFAULT_EXPORTERS, Exporter
 from .errors import SemanticError, ExportError
 from .parser import parse
 
@@ -25,6 +25,7 @@ class ExportPlan:
     score: ScoreResult
     path: str
     span: object
+    format: str = 'midi'
 
 @dataclass(frozen=True)
 class CompilationResult:
@@ -271,17 +272,22 @@ def compile_source(source, *, filename='<string>'):
             except (ValueError, ZeroDivisionError, OverflowError) as exc: raise SemanticError(str(exc),n.span,cause=exc) from exc
         if not tracks: fail(item,'Score must have at least one track')
         result=ScoreResult(Score(tuple(tracks),item.value,TempoMap(((Fraction(0),tempo),)),MeterMap(((Fraction(0),meter),))),key)
-        results.append(result); exports.extend(ExportPlan(result,p.value,p.span) for p in plans)
+        results.append(result); exports.extend(ExportPlan(result,p.value[1],p.span,p.value[0]) for p in plans)
     return CompilationResult(tuple(results),tuple(exports))
 
-def execute_exports(result, *, base_dir):
+def execute_exports(result, *, base_dir, exporters: dict[str, Exporter] | None = None):
+    """Execute plans using built-in and optionally supplied format exporters."""
+    available = dict(DEFAULT_EXPORTERS)
+    if exporters is not None: available.update(exporters)
     targets=[]; seen=set()
     for plan in result.exports:
+        exporter = available.get(plan.format)
+        if exporter is None: raise ExportError(f'Unknown export format: {plan.format}', plan.span)
         target=Path(plan.path)
         if not target.is_absolute(): target=Path(base_dir)/target
         target=target.resolve()
         if target in seen: raise ExportError(f'Duplicate export target: {target}',plan.span)
-        seen.add(target); targets.append((plan,target))
-    for plan,target in targets:
-        try: muse_to_midi(plan.score.score,str(target))
-        except Exception as exc: raise ExportError(f'MIDI export failed: {exc}',plan.span,cause=exc) from exc
+        seen.add(target); targets.append((plan,target,exporter))
+    for plan,target,exporter in targets:
+        try: exporter(plan.score.score,str(target))
+        except Exception as exc: raise ExportError(f'{plan.format} export failed: {exc}',plan.span,cause=exc) from exc
