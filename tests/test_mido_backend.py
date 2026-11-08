@@ -2,9 +2,9 @@ from fractions import Fraction
 
 from mido import MidiFile
 
-from muse.backends.mido import muse_to_midi
-from muse.core import N, Track
-from muse.core.work import Score, TempoMap
+from sonqelra.backends.mido import sonqelra_to_midi
+from sonqelra.core import N, Track
+from sonqelra.core.work import Score, TempoMap
 
 
 def test_midi_export_uses_delta_times_and_bpm(tmp_path):
@@ -15,7 +15,7 @@ def test_midi_export_uses_delta_times_and_bpm(tmp_path):
         tempo_map=TempoMap(((Fraction(0), 120), (Fraction(1), 60))),
     )
     path = tmp_path / "test.mid"
-    muse_to_midi(score, str(path))
+    sonqelra_to_midi(score, str(path))
 
     track = MidiFile(path).tracks[0]
     tick = 0
@@ -39,8 +39,8 @@ def test_midi_export_uses_delta_times_and_bpm(tmp_path):
 
 def test_midi_import_handles_polyphony_changes_and_silence(tmp_path):
     from mido import Message, MetaMessage, MidiTrack
-    from muse.backends.mido import midi_to_muse
-    from muse.core.work import TimeSignature
+    from sonqelra.backends.mido import midi_to_sonqelra
+    from sonqelra.core.work import TimeSignature
 
     midi = MidiFile(ticks_per_beat=480)
     conductor = MidiTrack([
@@ -61,7 +61,7 @@ def test_midi_import_handles_polyphony_changes_and_silence(tmp_path):
     path = tmp_path / "parts.mid"
     midi.save(path)
 
-    score = midi_to_muse(str(path))
+    score = midi_to_sonqelra(str(path))
     assert score.title == "parts"
     assert score.tempo_map.tempo == ((Fraction(0), 100), (Fraction(1), 120))
     assert score.meter_map.meter == ((Fraction(0), TimeSignature(3, 4)),)
@@ -77,13 +77,13 @@ def test_midi_import_handles_polyphony_changes_and_silence(tmp_path):
 
 
 def test_midi_import_round_trip_preserves_notes(tmp_path):
-    from muse.backends.mido import midi_to_muse
+    from sonqelra.backends.mido import midi_to_sonqelra
 
     music = N("C4", 1, 93) + (N("E4", 2, 71) | N("G4", 1, 65))
     original = Score(tracks=(Track(music=music, instrument="Piano", name="Piano"),), title="Test")
     path = tmp_path / "roundtrip.mid"
-    muse_to_midi(original, str(path))
-    restored = midi_to_muse(str(path))
+    sonqelra_to_midi(original, str(path))
+    restored = midi_to_sonqelra(str(path))
     assert sorted(restored.tracks[0].music.events(), key=lambda e: (e.start, e.pitch.midi)) == sorted(
         music.events(), key=lambda e: (e.start, e.pitch.midi)
     )
@@ -92,19 +92,19 @@ def test_midi_import_round_trip_preserves_notes(tmp_path):
 def test_midi_import_rejects_unclosed_note(tmp_path):
     import pytest
     from mido import Message, MidiTrack
-    from muse.backends.mido import midi_to_muse
+    from sonqelra.backends.mido import midi_to_sonqelra
 
     midi = MidiFile()
     midi.tracks.append(MidiTrack([Message("note_on", note=60, velocity=80)]))
     path = tmp_path / "unclosed.mid"
     midi.save(path)
     with pytest.raises(ValueError, match="Unclosed notes"):
-        midi_to_muse(str(path))
+        midi_to_sonqelra(str(path))
 
 
 def test_multitrack_export_round_trip(tmp_path):
-    from muse.backends.mido import midi_to_muse
-    from muse.core import MeterMap, Rest, TimeSignature
+    from sonqelra.backends.mido import midi_to_sonqelra
+    from sonqelra.core import MeterMap, Rest, TimeSignature
 
     melody = N("C4", 1, 65).transpose(2) + Rest(Fraction(1, 2)) + N("E4", 1, 90)
     harmony = (N("C3", 2, 55) | N("G3", 2, 60)) + Rest(Fraction(1))
@@ -115,10 +115,10 @@ def test_multitrack_export_round_trip(tmp_path):
         meter_map=MeterMap(((Fraction(0), TimeSignature(3, 4)),)),
     )
     path = tmp_path / "multitrack.mid"
-    muse_to_midi(original, str(path))
+    sonqelra_to_midi(original, str(path))
     midi = MidiFile(path)
     assert [[(m.channel, m.program) for m in t if m.type == "program_change"] for t in midi.tracks] == [[(0, 0)], [(1, 40)]]
-    restored = midi_to_muse(str(path))
+    restored = midi_to_sonqelra(str(path))
     assert [t.instrument for t in restored.tracks] == ["Acoustic Grand Piano", "Violin"]
     assert restored.tempo_map == original.tempo_map
     assert restored.meter_map == original.meter_map
@@ -131,7 +131,7 @@ def test_export_rejects_unrepresentable_time_and_ambiguous_notes(tmp_path):
     import pytest
 
     def export(music):
-        muse_to_midi(Score((Track(music, "Piano", "Test"),), "Test"), str(tmp_path / "test.mid"))
+        sonqelra_to_midi(Score((Track(music, "Piano", "Test"),), "Test"), str(tmp_path / "test.mid"))
 
     with pytest.raises(ValueError, match="cannot be represented exactly"):
         export(N("C4", Fraction(1, 7)))
@@ -146,13 +146,13 @@ def test_export_rejects_too_many_tracks(tmp_path):
 
     score = Score(tuple(Track(N("C4", 1), "Piano", str(i)) for i in range(16)), "Test")
     with pytest.raises(ValueError, match="15 melodic tracks"):
-        muse_to_midi(score, str(tmp_path / "test.mid"))
+        sonqelra_to_midi(score, str(tmp_path / "test.mid"))
 
 
 def test_midi_round_trip_preserves_channel_controls_drums_and_exact_tempo(tmp_path):
     from mido import Message, MetaMessage, MidiTrack
-    from muse.backends.mido import midi_to_muse
-    from muse.core import ControlChange, PitchBend
+    from sonqelra.backends.mido import midi_to_sonqelra
+    from sonqelra.core import ControlChange, PitchBend
 
     source = MidiFile(ticks_per_beat=480)
     source.tracks.extend([
@@ -170,7 +170,7 @@ def test_midi_round_trip_preserves_channel_controls_drums_and_exact_tempo(tmp_pa
     ])
     path = tmp_path / "source.mid"
     source.save(path)
-    score = midi_to_muse(str(path))
+    score = midi_to_sonqelra(str(path))
     assert score.tempo_map.tempo == ((Fraction(0), Fraction(60000000, 500001)),)
     assert score.tracks[0].is_percussion
     assert score.tracks[0].controls == (
@@ -178,27 +178,27 @@ def test_midi_round_trip_preserves_channel_controls_drums_and_exact_tempo(tmp_pa
         ControlChange(Fraction(3, 2), 64, 0),
     )
     output = tmp_path / "output.mid"
-    muse_to_midi(score, str(output))
+    sonqelra_to_midi(score, str(output))
     messages = MidiFile(output).tracks[0]
     assert next(m.tempo for m in messages if m.type == "set_tempo") == 500001
     assert next((m.channel, m.program) for m in messages if m.type == "program_change") == (9, 8)
     assert all(m.channel == 9 for m in messages if m.type in {"note_on", "note_off", "control_change", "pitchwheel"})
-    restored = midi_to_muse(str(output))
+    restored = midi_to_sonqelra(str(output))
     assert restored.tracks[0].controls == score.tracks[0].controls
     assert restored.tempo_map == score.tempo_map
 
 
 def test_midi_import_preserves_controls_without_notes(tmp_path):
     from mido import Message, MidiTrack
-    from muse.backends.mido import midi_to_muse
-    from muse.core import ControlChange
+    from sonqelra.backends.mido import midi_to_sonqelra
+    from sonqelra.core import ControlChange
 
     source = MidiFile()
     source.tracks.append(MidiTrack([Message("control_change", channel=3, control=64, value=127, time=240)]))
     path = tmp_path / "control.mid"
     source.save(path)
-    score = midi_to_muse(str(path))
+    score = midi_to_sonqelra(str(path))
     assert score.tracks[0].controls == (ControlChange(Fraction(1, 2), 64, 127),)
     output = tmp_path / "control-out.mid"
-    muse_to_midi(score, str(output))
-    assert midi_to_muse(str(output)).tracks[0].controls == score.tracks[0].controls
+    sonqelra_to_midi(score, str(output))
+    assert midi_to_sonqelra(str(output)).tracks[0].controls == score.tracks[0].controls

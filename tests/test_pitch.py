@@ -2,7 +2,7 @@
 
 import pytest
 
-from muse.core import Pitch
+from sonqelra.core import Pitch
 
 
 class TestParse:

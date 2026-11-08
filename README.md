@@ -1,6 +1,8 @@
-# Muse
+# Sonqelra
 
-Muse 用 Python 组合音符、休止符和多轨作品，并导出 MIDI 和 MusicXML。
+Sonqelra 用 Python 组合音符、休止符和多轨作品，并导出 MIDI 和 MusicXML。
+
+项目原名 Muse。升级时请将 Python 导入 `muse`、`muse_lang` 分别改为 `sonqelra`、`sonqelra_lang`，并将相关 API 名称中的 `muse` 改为 `sonqelra`。语言源文件扩展名由 `.muse` 改为 `.sonqelra`；VS Code 设置 `muse.pythonPath` 也改为 `sonqelra.pythonPath`。旧名称不再提供兼容入口。
 
 ## 安装与运行
 
@@ -29,37 +31,37 @@ python -m pytest -q
 将已有的 `Score` 导出为 MusicXML 文件，可用 MuseScore 等记谱软件打开：
 
 ```python
-from muse.backends import muse_to_musicxml
-from muse.core import N, Score, Track
+from sonqelra.backends import sonqelra_to_musicxml
+from sonqelra.core import N, Score, Track
 
 score = Score((Track(N("C4", 1) + N("D4", 1), "Piano", "旋律"),), "示例")
-muse_to_musicxml(score, "example.musicxml")
+sonqelra_to_musicxml(score, "example.musicxml")
 ```
 
-也可以先用 `midi_to_muse("input.mid")` 导入 MIDI，再将结果传给 `muse_to_musicxml`。导出支持多轨、重叠声部、休止、跨小节连音、速度和拍号变化，使用精确时值。拍号变化必须位于小节边界，否则会报错。乐谱默认使用高音谱号；打击乐按有音高音符记谱。音符力度、MIDI 控制器和弯音不会写入 MusicXML，复杂时值会以连音时值表示。
+也可以先用 `midi_to_sonqelra("input.mid")` 导入 MIDI，再将结果传给 `sonqelra_to_musicxml`。导出支持多轨、重叠声部、休止、跨小节连音、速度和拍号变化，使用精确时值。拍号变化必须位于小节边界，否则会报错。乐谱默认使用高音谱号；打击乐按有音高音符记谱。音符力度、MIDI 控制器和弯音不会写入 MusicXML，复杂时值会以连音时值表示。
 
-### Muse 语言
+### Sonqelra 语言
 
-Muse 源文件可编译为现有的 `Score`，编译阶段不会写文件。显式执行导出计划时，相对路径以指定目录为基准：
+Sonqelra 源文件可编译为现有的 `Score`，编译阶段不会写文件。显式执行导出计划时，相对路径以指定目录为基准：
 
 ```python
 from pathlib import Path
-from muse_lang import compile_source, execute_exports
+from sonqelra_lang import compile_source, execute_exports
 
-path = Path("examples/asdf.muse")
+path = Path("examples/asdf.sonqelra")
 result = compile_source(path.read_text(encoding="utf-8"), filename=str(path))
 score = result.scores[0].score
 execute_exports(result, base_dir=path.parent)
 ```
 
-在 Muse 源文件的 `score` 内可以直接声明导出格式：
+在 Sonqelra 源文件的 `score` 内可以直接声明导出格式：
 
-```muse
+```sonqelra
 export midi "output.mid"
 export musicxml "output.musicxml"
 ```
 
-运行 `python -m muse_lang examples/asdf.muse` 执行导出；相对路径以源文件所在目录为基准。编译不会写文件。除内置的 `midi` 和 `musicxml` 外，Python 调用方可在执行时注入其他导出器：
+运行 `python -m sonqelra_lang examples/asdf.sonqelra` 执行导出；相对路径以源文件所在目录为基准。编译不会写文件。除内置的 `midi` 和 `musicxml` 外，Python 调用方可在执行时注入其他导出器：
 
 ```python
 def export_custom(score, path):
@@ -68,8 +70,8 @@ def export_custom(score, path):
 execute_exports(result, base_dir=path.parent, exporters={"custom": export_custom})
 ```
 
-这样源文件即可使用 `export custom "output.ext"`。注入的同名导出器会覆盖内置实现；未知格式在写入任何文件前报错。语言语法和语义见 [Muse 语言设计](docs/muse-lang-design.md)。
+这样源文件即可使用 `export custom "output.ext"`。注入的同名导出器会覆盖内置实现；未知格式在写入任何文件前报错。语言语法和语义见 [Sonqelra 语言设计](docs/sonqelra-lang-design.md)。
 
 ### VS Code 扩展
 
-仓库中的 [Muse Language 扩展](vscode-muse/README.md) 支持 `.muse` 语法高亮和运行编译及导出命令。安装方法及 Python 解释器设置见扩展说明。
+仓库中的 [Sonqelra Language 扩展](vscode-sonqelra/README.md) 支持 `.sonqelra` 语法高亮和运行编译及导出命令。安装方法及 Python 解释器设置见扩展说明。

@@ -3,8 +3,8 @@
 import subprocess
 from fractions import Fraction as F
 
-from muse.backends.mido import muse_to_midi
-from muse.core import N, Rest, Score, TempoMap, Track
+from sonqelra.backends.mido import sonqelra_to_midi
+from sonqelra.core import N, Rest, Score, TempoMap, Track
 
 # 4/4 拍，16 小节；每个乐句或节奏型均为一小节。
 half = F(1, 2)
@@ -66,7 +66,7 @@ score = Score(
 
 if __name__ == "__main__":
     name = "electric_road"
-    muse_to_midi(score, f"{name}.mid")
+    sonqelra_to_midi(score, f"{name}.mid")
     subprocess.run(
         [
             "fluidsynth", "-ni", "-F", f"{name}.wav", "-r", "44100",

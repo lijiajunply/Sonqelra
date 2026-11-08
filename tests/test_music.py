@@ -4,7 +4,7 @@ from fractions import Fraction
 
 import pytest
 
-from muse.core import (
+from sonqelra.core import (
     Event,
     Music,
     N,

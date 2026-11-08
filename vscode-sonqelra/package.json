@@ -1,0 +1,95 @@
+{
+  "name": "sonqelra-lang",
+  "displayName": "Sonqelra Language",
+  "description": "Syntax highlighting, completion, navigation and compilation for Sonqelra music files.",
+  "version": "0.2.0",
+  "publisher": "muse-lang",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onLanguage:sonqelra"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "sonqelra",
+        "aliases": [
+          "Sonqelra",
+          "sonqelra"
+        ],
+        "extensions": [
+          ".sonqelra"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "sonqelra",
+        "scopeName": "source.sonqelra",
+        "path": "./syntaxes/sonqelra.tmLanguage.json"
+      }
+    ],
+    "commands": [
+      {
+        "command": "sonqelra.compile",
+        "title": "Sonqelra: Compile and Export"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "sonqelra.compile",
+          "when": "editorLangId == sonqelra",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "sonqelra.compile",
+          "when": "editorLangId == sonqelra",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Sonqelra",
+      "properties": {
+        "sonqelra.pythonPath": {
+          "type": "string",
+          "default": "python3",
+          "description": "Python executable with sonqelra_lang installed. An absolute path is recommended for virtual environments."
+        }
+      }
+    },
+    "problemMatchers": [
+      {
+        "name": "sonqelra",
+        "owner": "sonqelra",
+        "source": "Sonqelra",
+        "fileLocation": "absolute",
+        "pattern": {
+          "regexp": "^(.*):(\\d+):(\\d+): (.*)$",
+          "file": 1,
+          "line": 2,
+          "column": 3,
+          "message": 4
+        }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "sonqelra",
+        "path": "./snippets/sonqelra.json"
+      }
+    ]
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  }
+}

@@ -6,7 +6,7 @@ from itertools import islice
 
 import pytest
 
-from muse.core import (
+from sonqelra.core import (
     Event,
     Music,
     N,

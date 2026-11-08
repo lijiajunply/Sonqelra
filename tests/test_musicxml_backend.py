@@ -3,8 +3,8 @@ from xml.etree import ElementTree as ET
 
 import pytest
 
-from muse.backends import muse_to_musicxml
-from muse.core import N, Rest, Score, Track, TempoMap, MeterMap, TimeSignature
+from sonqelra.backends import sonqelra_to_musicxml
+from sonqelra.core import N, Rest, Score, Track, TempoMap, MeterMap, TimeSignature
 
 
 def test_musicxml_preserves_parts_timing_spelling_and_ties(tmp_path):
@@ -15,7 +15,7 @@ def test_musicxml_preserves_parts_timing_spelling_and_ties(tmp_path):
         MeterMap(((F(0), TimeSignature(4, 4)), (F(4), TimeSignature(3, 4)))),
     )
     path = tmp_path / "score.musicxml"
-    muse_to_musicxml(score, path)
+    sonqelra_to_musicxml(score, path)
     root = ET.parse(path).getroot()
     assert root.findtext("work/work-title") == "标题"
     assert len(root.findall("part")) == 2
@@ -34,4 +34,4 @@ def test_meter_change_must_be_at_measure_boundary(tmp_path):
     score = Score((Track(N("C4", 4), "Piano", "Piano"),), "x",
                   meter_map=MeterMap(((F(0), TimeSignature(4, 4)), (F(2), TimeSignature(3, 4)))))
     with pytest.raises(ValueError, match="measure boundaries"):
-        muse_to_musicxml(score, tmp_path / "x.musicxml")
+        sonqelra_to_musicxml(score, tmp_path / "x.musicxml")
