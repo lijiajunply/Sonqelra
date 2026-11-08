@@ -1,22 +1,108 @@
 {
   "Score": {
     "prefix": "score",
-    "body": ["score \"${1:Title}\" {", "    tempo ${2:120}", "    meter ${3:4/4}", "", "    melody ${4:theme} {", "        ${5:C4}:1/4", "    }", "", "    track \"${6:Piano}\" {", "        instrument \"${7:Piano}\"", "        play ${4:theme}", "    }", "", "    export midi \"${8:output.mid}\"", "}"],
+    "body": [
+      "score \"${1:Title}\" {",
+      "    tempo ${2:120}",
+      "    meter ${3:4/4}",
+      "",
+      "    melody ${4:theme} {",
+      "        ${5:C4}:1/4",
+      "    }",
+      "",
+      "    track \"${6:Piano}\" {",
+      "        instrument \"${7:Piano}\"",
+      "        play ${4:theme}",
+      "    }",
+      "",
+      "    export midi \"${8:output.mid}\"",
+      "}"
+    ],
     "description": "Create a score with a melody, track and MIDI export"
   },
   "Melody": {
     "prefix": "melody",
-    "body": ["melody ${1:theme} {", "    ${2:C4}:${3:1/4}", "    $0", "}"],
+    "body": [
+      "melody ${1:theme} {",
+      "    ${2:C4}:${3:1/4}",
+      "    $0",
+      "}"
+    ],
     "description": "Create a melody"
   },
   "Track": {
     "prefix": "track",
-    "body": ["track \"${1:Piano}\" {", "    instrument \"${2:Piano}\"", "    play ${3:theme}", "}"],
+    "body": [
+      "track \"${1:Piano}\" {",
+      "    instrument \"${2:Piano}\"",
+      "    play ${3:theme}",
+      "}"
+    ],
     "description": "Create a track"
   },
   "Function": {
     "prefix": "fn",
-    "body": ["fn ${1:name}(${2:pitch}: Pitch) -> Music {", "    return ${3:note(${2:pitch}, 1)}", "}"],
+    "body": [
+      "fn ${1:name}(${2:pitch}: Pitch) -> Music {",
+      "    return ${3:note(${2:pitch}, 1)}",
+      "}"
+    ],
     "description": "Create a Sonqelra function"
+  },
+  "Import Sonqelra module": {
+    "prefix": "import sonqelra",
+    "body": [
+      "import sonqelra \"${1:parts/module.sonqelra}\""
+    ],
+    "description": "Import a Sonqelra module"
+  },
+  "Import MIDI": {
+    "prefix": "import midi",
+    "body": [
+      "import midi \"${1:music.mid}\""
+    ],
+    "description": "Import a MIDI module"
+  },
+  "Import MusicXML": {
+    "prefix": "import musicxml",
+    "body": [
+      "import musicxml \"${1:music.musicxml}\""
+    ],
+    "description": "Import a MusicXML module"
+  },
+  "Import score": {
+    "prefix": "import score",
+    "body": [
+      "import score \"${1:Score Title}\""
+    ],
+    "description": "Import an earlier score from this file"
+  },
+  "Module track": {
+    "prefix": "module track",
+    "body": [
+      "module(\"${1:module}\").\"${2:Score Title}\".track.\"${3:Track Name}\""
+    ],
+    "description": "Reference a track in an imported module"
+  },
+  "Module function": {
+    "prefix": "module fn",
+    "body": [
+      "module(\"${1:module}\").\"${2:Score Title}\".fn.${3:function}(${4:arguments})"
+    ],
+    "description": "Call a function in an imported module"
+  },
+  "Score track": {
+    "prefix": "score track",
+    "body": [
+      "score(\"${1:Score Title}\").track.\"${2:Track Name}\""
+    ],
+    "description": "Reference a track in an imported score"
+  },
+  "Score function": {
+    "prefix": "score fn",
+    "body": [
+      "score(\"${1:Score Title}\").fn.${2:function}(${3:arguments})"
+    ],
+    "description": "Call a function in an imported score"
   }
 }

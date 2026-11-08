@@ -20,7 +20,7 @@ function activate(context) {
         items.push(item);
       }
       if (pipeline) return items;
-      for (const word of ['score', 'tempo', 'meter', 'key', 'major', 'minor', 'melody', 'let', 'fn', 'return', 'track', 'instrument', 'percussion', 'play', 'export', 'true', 'false', 'Pitch', 'Music', 'Int', 'Number', 'Interval', 'List']) {
+      for (const word of ['score', 'tempo', 'meter', 'key', 'major', 'minor', 'melody', 'let', 'fn', 'return', 'track', 'instrument', 'percussion', 'play', 'export', 'import', 'midi', 'musicxml', 'sonqelra', 'module', 'true', 'false', 'Pitch', 'Music', 'Int', 'Number', 'Interval', 'List']) {
         items.push(new vscode.CompletionItem(word, vscode.CompletionItemKind.Keyword));
       }
       for (const symbol of language.visibleSymbols(text, offset)) {
