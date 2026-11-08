@@ -1,0 +1,29 @@
+// 可复用的放克节奏组。函数参数让同一节奏跟随和声移动。
+score "Pocket Parts" {
+    fn bass_bar(root: Pitch) -> Music {
+        return (
+            note(root, 1/2, 105) + rest(1/4) + note(root + 7st, 1/4, 84)
+            + note(root + 10st, 1/2, 92) + rest(1/2)
+            + note(root + 12st, 1/2, 108) + note(root + 7st, 1/2, 90)
+            + rest(1/2) + note(root + 10st, 1/2, 96)
+        )
+    }
+
+    // 切分和弦：三个短促的十六分音符落在拍间。
+    fn guitar_bar(root: Pitch) -> Music {
+        let voicing = [root, root + 3st, root + 7st, root + 10st]
+        let stab = chord(voicing, duration: 1/16, velocity: 82)
+        return (rest(3/4) + stab + rest(1/2) + stab + rest(1)
+                + stab + rest(1))
+    }
+
+    // 单条轨道中的并行片段用 | 叠加；不同鼓使用不同音高。
+    let kick = note(C2, 1/2, 112) + rest(1) + note(C2, 1/2, 95) + rest(2)
+    let snare = rest(1) + note(D2, 1/4, 108) + rest(7/4) + note(D2, 1/4, 112) + rest(3/4)
+    let hats = (note(F#2, 1/2, 73) + note(F#2, 1/2, 56)) |> repeat(4)
+    track "Drum Bar" {
+        instrument "Piano"
+        percussion true
+        play kick | snare | hats
+    }
+}

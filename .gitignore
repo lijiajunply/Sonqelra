@@ -12,5 +12,6 @@ wheels/
 *.mid
 *.mp3
 *.wav
+*.musicxml
 
 .DS_Store

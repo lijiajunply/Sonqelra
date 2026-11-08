@@ -104,14 +104,14 @@ melody phrase {
 - `lexer.py`：词法分析，识别关键字、标识符、音高、数字、`st` 音程、字符串、注释和运算符，给 token 附源位置。
 - `ast.py`：定义不可变 AST 和 `Span`，不依赖核心音乐对象。`MeterLiteral` 保留原始分子和分母；`NoteLiteral` 保留谱面时值；数组和管道保留源码结构。
 - `parser.py`：构造 AST，不求值或写文件；保留乐谱及轨道内字段顺序，便于发现重复声明。
-- `compiler.py`：检查名称、类型及约束，求值并构造核心对象；只生成导出计划，不访问文件系统，也不使用 Python `eval`。
+- `compiler.py`：检查名称、类型及约束，求值并构造核心对象；读取导入模块并生成导出计划，不使用 Python `eval`。
 - `__init__.py`：公开 `compile_source(source, *, filename="<string>")` 与结果和错误类型。CLI 读取源码并显式执行导出。
 
 `CompilationResult` 按源顺序保存作品结果和导出计划。每个作品结果包含 `score: Score` 和可选的调性元数据；每条导出计划关联对应作品、路径及源范围。`execute_exports(result, *, base_dir)` 以 `base_dir` 解析相对路径，绝对路径按原样处理；重复输出目标在写入前报错。CLI 以源文件所在目录作为 `base_dir`。多个文件导出不是事务性的，失败时可能已有部分输出。
 
 ## 词法与语法规则
 
-源码为 UTF-8；标识符以 ASCII 字母或 `_` 开头，后接 ASCII 字母、数字或 `_`，区分大小写。完整匹配音高格式的单词保留为音高；`e5` 是标识符，`E5` 是音高。`//` 开始行注释；`#` 是音高中的升号。双引号字符串支持 `\\`、`\"`、`\n`、`\r` 和 `\t`。`|>` 和 `->` 按最长匹配识别。
+源码为 UTF-8；标识符以 ASCII 字母或 `_` 开头，后接 ASCII 字母、数字或 `_`，区分大小写。完整匹配音高格式的单词保留为音高；`e5` 是标识符，`E5` 是音高。`//` 开始行注释；`#` 是音高中的升号。单引号与双引号字符串支持 `\\`、`\"`、`\n`、`\r` 和 `\t`。`|>` 和 `->` 按最长匹配识别。
 
 换行通常结束语句；圆括号和方括号内部的换行忽略。表达式后紧接以 `|>` 开头的行是管道续行，即使不在括号内；续行后表达式的其他部分仍须遵循括号规则。花括号不抑制换行。每条旋律元素占一行。允许空行，最后一条语句可在 `}` 或 EOF 前直接结束。
 
@@ -119,9 +119,11 @@ melody phrase {
 
 ```ebnf
 program      = NL* (top_stmt NL*)* EOF ;
-top_stmt     = fn_decl | score_decl ;
+top_stmt     = fn_decl | score_decl | import_file ;
 score_decl   = "score" STRING "{" NL* (score_item NL*)* "}" end ;
-score_item   = tempo | meter | key | melody | let_stmt | fn_decl | track | export ;
+score_item   = tempo | meter | key | melody | let_stmt | fn_decl | track | export | import_score ;
+import_file  = "import" ("midi" | "musicxml" | "sonqelra") STRING end ;
+import_score = "import" "score" STRING end ;
 tempo        = "tempo" expr end ;
 meter        = "meter" INT "/" INT end ;
 key          = "key" KEY_ROOT ("major" | "minor") end ;
@@ -140,7 +142,9 @@ expr         = pipeline ;
 pipeline     = parallel ("|>" IDENT "(" args? ")")* ;
 parallel     = addition ("|" addition)* ;
 addition     = primary ("+" primary)* ;
-primary      = PITCH | number | INTERVAL | IDENT | call | list | "(" expr ")" ;
+primary      = PITCH | number | INTERVAL | IDENT | call | list | qualified | "(" expr ")" ;
+qualified    = ("module" "(" STRING ")" "." STRING | "score" "(" STRING ")")
+               "." ("fn" "." IDENT "(" args? ")" | "track" "." STRING) ;
 call         = IDENT "(" args? ")" ;
 list         = "[" expr ("," expr)* ","? "]" ;
 args         = arg ("," arg)* ;
@@ -155,3 +159,11 @@ number       = "-"? INT ("/" INT)? ;
 所有 token 和 AST 节点携带文件名与 1 起始的行列范围，结束位置为开区间。统一 `SonqelraError`，区分词法、语法、语义和导出错误；错误包含源范围和可选底层原因。第一版遇到首个错误即停止。底层无效音高、非法拍号、未知乐器、无效力度或导出失败均转成带相应源位置的错误。MIDI 后端的重叠同音、力度 0 和 tick 精度等限制在导出阶段报告。乐谱至少包含一条音轨，标题和轨道名非空；每条音轨必须有一个合法乐器和一个 `Music` 类型的 `play`。
 
 建议实现顺序：先实现 lexer/AST/parser 与多行管道，再实现作用域、精确时值换算和核心对象构造，最后实现显式导出及 CLI。将 `sonqelra_lang` 加入 `pyproject.toml` 的 wheel 包列表。测试应覆盖本文首个示例、数组与音程、`chord` 的同时起音和 `sequence` 的依次起音、具名参数及其错误、`4/4` 不被约分、重复字段及错误位置。`asdf.sonqelra` 应与 `asdf.py` 按轨道比较名称、乐器、打击乐标志、速度/拍号、总时长和排序后的全部音符事件；在临时目录验证导出 MIDI 可读取，并确认单独编译不产生文件。FluidSynth 和 WAV 渲染不属于语言验收。
+
+## 导入
+
+文件顶层使用 `import midi "path.mid"`、`import musicxml "path.musicxml"` 或 `import sonqelra "path.sonqelra"` 注册模块，不自动加入轨道。模块名为文件名去除扩展名；模块中的作品按标题区分。同名模块或模块内重复标题报错。使用 `module("模块名")."作品名".fn.函数名(参数)` 调用脚本作品定义的函数，或 `module("模块名")."作品名".track."轨道名"` 获取轨道的 `Music`。MIDI 作品名使用文件名；MusicXML 使用作品标题或文件名。MIDI 和 MusicXML 不包含语言函数。获取轨道音乐时不会带入乐器和控制事件。
+
+`score` 中的 `import score "作品名"` 注册本文件中此前定义的作品，使用 `score("作品名").fn.函数名(参数)` 或 `score("作品名").track."轨道名"` 引用。作品必须唯一，不能前向引用，且导入不会自动增加轨道。函数保留其定义时的闭包，按声明顺序可见。
+
+每个路径相对于包含它的源文件；嵌套脚本按各自路径解析，循环导入报错。模块在编译时读取，脚本的导出计划不会执行。MusicXML 支持未压缩的 partwise 格式，具体限制见 README。

@@ -1,0 +1,88 @@
+// Pocket Detour：原创放克摇滚小品，32 小节，4/4，约 57 秒。
+// 运行：python -m sonqelra_lang examples/pocket_detour.sonqelra
+// 输出 MIDI 和 MusicXML 到本文件所在目录。
+import sonqelra "parts/pocket_parts.sonqelra"
+
+score "Pocket Detour" {
+    tempo 134
+    meter 4/4
+    key E minor
+
+    // melody 的时值按全音符比例计算；@ 指定力度。
+    melody hook {
+        rest:1/8
+        E4:1/8@99
+        G4:1/8@105
+        A4:1/8@92
+        Bb4:1/8@108
+        B4:1/8@114
+        D5:1/8@100
+        B4:1/8@96
+        G4:1/8@100
+        E4:1/8@105
+        rest:1/8
+        D4:1/8@88
+        E4:1/4@110
+        rest:1/4
+    }
+    melody answer {
+        rest:1/8
+        B4:1/8@102
+        D5:1/8@108
+        E5:1/8@115
+        G5:1/4@110
+        E5:1/8@96
+        D5:1/8@90
+        B4:1/8@98
+        A4:1/8@90
+        G4:1/8@101
+        E4:1/8@106
+        D4:1/8@88
+        E4:3/8@112
+    }
+    // 两小节乐句：音高数组、半音音程和 sequence 的具名参数。
+    let run = sequence([E4, G4, A4, B4, D5, E5, G5, A5], duration: 1/8, velocity: 100)
+    let descent = sequence([G5, E5, D5, B4, A4, G4, E4, D4], duration: 1/8, velocity: 94)
+    let turnaround = run + descent
+    let silence4 = rest(16)
+    let verse = hook + answer + hook + turnaround
+    let bridge = (turnaround + (hook |> transpose(12))) |> repeat(2)
+    let outro = answer + hook
+    let lead = silence4 + verse + bridge + verse + outro
+
+    // 模块函数返回 Music；+ 串接小节，|> repeat 重复段落。
+    let bass_e = module("pocket_parts")."Pocket Parts".fn.bass_bar(E2)
+    let bass_g = module("pocket_parts")."Pocket Parts".fn.bass_bar(G2)
+    let bass_a = module("pocket_parts")."Pocket Parts".fn.bass_bar(A2)
+    let bass_b = module("pocket_parts")."Pocket Parts".fn.bass_bar(B2)
+    let bass_cycle = bass_e + bass_g + bass_a + bass_b
+    let bass = bass_cycle |> repeat(8)
+
+    let guitar_e = module("pocket_parts")."Pocket Parts".fn.guitar_bar(E3)
+    let guitar_g = module("pocket_parts")."Pocket Parts".fn.guitar_bar(G3)
+    let guitar_a = module("pocket_parts")."Pocket Parts".fn.guitar_bar(A3)
+    let guitar_b = module("pocket_parts")."Pocket Parts".fn.guitar_bar(B3)
+    let rhythm = (guitar_e + guitar_g + guitar_a + guitar_b) |> repeat(8)
+    let drums = module("pocket_parts")."Pocket Parts".track."Drum Bar" |> repeat(32)
+
+    track "Lead Guitar" {
+        instrument "Overdriven Guitar"
+        play lead
+    }
+    track "Rhythm Guitar" {
+        instrument "Electric Guitar (clean)"
+        play rhythm
+    }
+    track "Bass" {
+        instrument "Electric Bass (finger)"
+        play bass
+    }
+    track "Drums" {
+        instrument "Piano"
+        percussion true
+        play drums
+    }
+
+    export midi "pocket_detour.mid"
+    export musicxml "pocket_detour.musicxml"
+}

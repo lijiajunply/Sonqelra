@@ -23,13 +23,14 @@ class Parser:
         elif not self.is_('}') and not self.is_('EOF'): raise ParseError('Expected end of statement', self.t.span)
     def ident(self):
         t = self.take('IDENT')
-        if t.value in {'score','tempo','meter','key','melody','let','fn','return','track','instrument','percussion','play','export','midi','true','false','major','minor','rest'}: raise ParseError('Expected identifier', t.span)
+        if t.value in {'score','tempo','meter','key','melody','let','fn','return','track','instrument','percussion','play','export','import','midi','true','false','major','minor','rest'}: raise ParseError('Expected identifier', t.span)
         return t.value
     def program(self):
         items = []; self.nl()
         while not self.is_('EOF'):
             if self.is_('score'): items.append(self.score())
             elif self.is_('fn'): items.append(self.fn())
+            elif self.is_('import'): items.append(self.statement('top'))
             else: raise ParseError('Expected score or fn', self.t.span)
             self.end()
         return tuple(items)
@@ -65,6 +66,9 @@ class Parser:
             while not self.is_('}'):
                 items.append(self.statement('track')); self.end()
             self.take('}'); return self.node(k,s,name,items)
+        if k == 'import' and context in ('top', 'score'):
+            self.take(); format_name = self.take('IDENT').value; path = self.take('STRING').value
+            return self.node(k, s, (format_name, path))
         if k == 'export' and context == 'score':
             self.take(); format_name = self.take('IDENT').value; path = self.take('STRING').value
             return self.node(k, s, (format_name, path))
@@ -125,6 +129,17 @@ class Parser:
             self.take(); n=int(s.value); d=1
             if self.is_('/'): self.take(); d=int(self.take('INT').value)
             return self.node('number',s,(n,d))
+        if self.is_('IDENT') and s.value in ('module', 'score') and self.tokens[self.i+1].kind == '(':
+            base=self.take().value; self.take('('); module=self.take('STRING').value; self.take(')')
+            if base=='module':
+                self.take('.'); title=self.take('STRING').value
+            else: title=module; module=None
+            self.take('.'); category=self.take('IDENT').value
+            if category not in ('fn','track'): raise ParseError('Expected fn or track', self.tokens[self.i-1].span)
+            self.take('.')
+            member=self.take('IDENT').value if category=='fn' else self.take('STRING').value
+            args=self.args() if category=='fn' else ()
+            return self.node('qualified',s,(module,title,category,member),args)
         if self.is_('IDENT'):
             name=self.take().value
             if self.is_('('): return self.node('call',s,name,self.args())

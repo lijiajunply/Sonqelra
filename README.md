@@ -54,6 +54,30 @@ score = result.scores[0].score
 execute_exports(result, base_dir=path.parent)
 ```
 
+在文件顶层导入模块，在作品中按需引用函数或轨道：
+
+```sonqelra
+import sonqelra "parts/guitar.sonqelra"
+import midi "melody.mid"
+
+score "组合" {
+    track "Guitar" {
+        instrument "Distortion Guitar"
+        play module("guitar")."Electric Road".fn.power_chord(E3, B3)
+    }
+    track "Melody" {
+        instrument "Piano"
+        play module("melody")."melody".track."原轨道名"
+    }
+}
+```
+
+模块名是文件名（不含扩展名），作品和轨道按原名称查找。MIDI 的作品名为文件名（不含扩展名）；MusicXML 使用作品标题，没有标题时使用文件名。MIDI 和 MusicXML 不含 Sonqelra 函数，可以通过 `.track."轨道名"` 取得 `Music`；此操作取出音乐片段，当前 `track` 的乐器及打击乐设置由当前代码指定，不带入原轨道的控制器。
+
+同一文件中可以定义多个作品。在后面的作品内用 `import score "作品名"` 注册前面定义的作品，然后使用 `score("作品名").fn.函数名(...)` 或 `score("作品名").track."轨道名"`。导入只注册引用，不会自动增加轨道；模块在编译时读取，导入脚本的导出计划不会执行。脚本函数保留其声明时的作用域。路径相对于包含导入语句的源文件；从字符串编译相对路径时须传入 `filename`。支持嵌套导入和循环依赖检测，同名模块或模块内同名作品会报错。
+
+MusicXML 导入支持未压缩的 `score-partwise` 文件，包含音符、休止、和弦、多声部、连音和 MIDI 乐器；力度默认为 80。暂不支持装饰音、微分音和无音高打击乐音符，反复记号、歌词及其他记谱信息不会转换。Python 代码也可以使用 `musicxml_to_sonqelra(path)` 读取 MusicXML。
+
 在 Sonqelra 源文件的 `score` 内可以直接声明导出格式：
 
 ```sonqelra

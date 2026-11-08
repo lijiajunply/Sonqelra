@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
 import re
+from sonqelra.backends import midi_to_sonqelra, musicxml_to_sonqelra
 from sonqelra.core import Pitch, Note, Rest, Sequence, Parallel
 from sonqelra.core.base import Music
 from sonqelra.core.work import Score, Track, TempoMap, MeterMap, TimeSignature
@@ -19,6 +20,7 @@ class KeySignature:
 class ScoreResult:
     score: Score
     key: KeySignature | None
+    functions: dict | None = None
 
 @dataclass(frozen=True)
 class ExportPlan:
@@ -86,6 +88,11 @@ def _evaluate(n, env):
         a=evaluate(n.children[0],env); b=evaluate(n.children[1],env)
         if k=='+' and isinstance(a,Pitch) and isinstance(b,Interval): return a.transpose(b.semitones)
         require(n,a,'Music'); require(n,b,'Music'); return a+b if k=='+' else a|b
+    if k == 'qualified':
+        value = resolve_qualified(n, env)
+        if n.value[2] == 'track': return value
+        if any(a.value is not None for a in n.children): fail(n, 'Named arguments are not supported here')
+        return call(n, '__qualified__', [evaluate(a.children[0],env) for a in n.children], {}, env | {'__qualified__': value})
     if k in ('call','pipe'):
         if k=='pipe':
             if n.value not in ('transpose','repeat'): fail(n,'Pipeline only supports transpose and repeat')
@@ -139,8 +146,36 @@ def call(n,name,args,kwargs,env):
     result=evaluate(fn.node.children[-1],fn.closure|local)
     return require(fn.node,result,fn.node.value[1])
 
+def resolve_qualified(n, env):
+    module, title, category, member = n.value
+    if module is None:
+        result = env.get(('score', title))
+    else:
+        scores = env.get(('module', module))
+        if scores is None: fail(n, f'Unknown module {module}')
+        result = scores.get(title)
+    if result is None: fail(n, f'Unknown score {title}')
+    if category == 'fn':
+        value = (result.functions or {}).get(member)
+        if value is None: fail(n, f'Unknown function {member} in score {title}')
+        return value
+    matches = [track for track in result.score.tracks if track.name == member]
+    if len(matches) != 1: fail(n, f'Unknown or ambiguous track {member} in score {title}')
+    return matches[0].music
+
 def infer(n, env):
     k = n.kind
+    if k == 'qualified':
+        value = resolve_qualified(n, env)
+        if n.value[2] == 'track': return 'Music'
+        fn = value
+        params = [p for p in fn.node.children if p.kind == 'param']
+        if len(n.children) != len(params): fail(n, 'Wrong number of arguments')
+        for arg, param in zip(n.children, params):
+            if arg.value is not None: fail(arg, 'Named arguments are not supported here')
+            actual = infer(arg.children[0], env); expected = param.value[1]
+            if actual != expected and not (expected == 'Number' and actual == 'Int'): fail(arg, f'Expected {expected}, got {actual}')
+        return fn.node.value[1]
     if k == 'number':
         if n.value[1] <= 0: fail(n, 'Number denominator must be positive')
         return 'Int' if n.value[1] == 1 else 'Number'
@@ -218,8 +253,38 @@ def declare_function(n, outer, local):
     bind(local,n.value[0],Function(n,closure),n)
 
 def compile_source(source, *, filename='<string>'):
+    path = Path(filename).resolve() if filename != '<string>' else None
+    return _compile_source(source, filename, (path,) if path else ())
+
+def _compile_source(source, filename, active):
     program=parse(source,filename=filename); globals_={}; results=[]; exports=[]
     for item in program:
+        if item.kind=='import':
+            format_name, import_path = item.value
+            if format_name not in ('midi', 'musicxml', 'sonqelra'): fail(item, f'Unknown import format: {format_name}')
+            if not import_path: fail(item, 'Import path must not be empty')
+            target = Path(import_path)
+            if not target.is_absolute():
+                if filename == '<string>': fail(item, 'Relative import requires a source filename')
+                target = Path(filename).resolve().parent / target
+            target = target.resolve()
+            module_name = target.stem
+            if ('module', module_name) in globals_: fail(item, f'Duplicate module {module_name}')
+            try:
+                if format_name == 'sonqelra':
+                    if target in active: fail(item, f'Circular import: {target}')
+                    imported = _compile_source(target.read_text(encoding='utf-8'), str(target), (*active, target)).scores
+                else:
+                    loader = midi_to_sonqelra if format_name == 'midi' else musicxml_to_sonqelra
+                    imported = (ScoreResult(loader(str(target)), None),)
+                scores = {}
+                for result in imported:
+                    if result.score.title in scores: fail(item, f'Duplicate score title {result.score.title} in module {module_name}')
+                    scores[result.score.title] = result
+                globals_[('module', module_name)] = scores
+            except SemanticError: raise
+            except Exception as exc: raise SemanticError(f'{format_name} import failed: {exc}', item.span, cause=exc) from exc
+            continue
         if item.kind=='fn': declare_function(item,{},globals_); continue
         if not item.value: fail(item,'Score title must not be empty')
         local={}; tracks=[]; plans=[]; fields={}; key=None; tempo=120; meter=TimeSignature(4,4)
@@ -267,11 +332,18 @@ def compile_source(source, *, filename='<string>'):
                     try: track.instrument_to_midi_program()
                     except ValueError as exc: raise SemanticError(str(exc),parts['instrument'].span,cause=exc) from exc
                     tracks.append(track)
+                elif n.kind=='import':
+                    format_name, title = n.value
+                    if format_name != 'score': fail(n, 'Only import score is allowed inside a score')
+                    matches = [result for result in results if result.score.title == title]
+                    if len(matches) != 1: fail(n, f'Unknown or ambiguous score {title}')
+                    if ('score', title) in local: fail(n, f'Duplicate score import {title}')
+                    local[('score', title)] = matches[0]
                 elif n.kind=='export': plans.append(n)
             except SemanticError: raise
             except (ValueError, ZeroDivisionError, OverflowError) as exc: raise SemanticError(str(exc),n.span,cause=exc) from exc
         if not tracks: fail(item,'Score must have at least one track')
-        result=ScoreResult(Score(tuple(tracks),item.value,TempoMap(((Fraction(0),tempo),)),MeterMap(((Fraction(0),meter),))),key)
+        result=ScoreResult(Score(tuple(tracks),item.value,TempoMap(((Fraction(0),tempo),)),MeterMap(((Fraction(0),meter),))),key,{name: value for name, value in local.items() if isinstance(name, str) and isinstance(value, Function)})
         results.append(result); exports.extend(ExportPlan(result,p.value[1],p.span,p.value[0]) for p in plans)
     return CompilationResult(tuple(results),tuple(exports))
 

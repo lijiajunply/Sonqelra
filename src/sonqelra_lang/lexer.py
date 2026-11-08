@@ -29,14 +29,15 @@ def lex(source, filename='<string>'):
         if source.startswith('//', i):
             while i < len(source) and source[i] != '\n': i += 1; col += 1
             continue
-        if c == '"':
+        if c in ('"', "'"):
+            quote = c
             i += 1; col += 1; value = ''
-            while i < len(source) and source[i] != '"':
+            while i < len(source) and source[i] != quote:
                 ch = source[i]
                 if ch == '\n': raise LexError('Unterminated string', Span(filename, start, Position(line, col)))
                 if ch == '\\':
                     i += 1; col += 1
-                    if i >= len(source) or source[i] not in '\\"nrt': raise LexError('Invalid string escape', Span(filename, start, Position(line, col)))
+                    if i >= len(source) or source[i] not in '\\"\'nrt': raise LexError('Invalid string escape', Span(filename, start, Position(line, col)))
                     ch = {'n':'\n','r':'\r','t':'\t'}.get(source[i], source[i])
                 value += ch; i += 1; col += 1
             if i == len(source): raise LexError('Unterminated string', Span(filename, start, Position(line, col)))
@@ -54,7 +55,7 @@ def lex(source, filename='<string>'):
         # Positive intervals start with digits and require longest match.
         if source.startswith('|>', i) or source.startswith('->', i):
             value = source[i:i+2]; i += 2; col += 2; emit(value, value, start, Position(line, col)); continue
-        if c in '{}()[],:@=+|/<>':
+        if c in '{}()[],:@=+|/<>.':
             i += 1; col += 1
             if c in '([': depth += 1
             elif c in ')]': depth = max(0, depth - 1)
